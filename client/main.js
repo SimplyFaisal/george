@@ -1,1 +1,1 @@
-import {World} from './app.jsx';
+import {AppFrame} from './app.jsx';
