@@ -2,37 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import { Router, Route, Link, IndexRoute, hashHistory } from 'react-router';
 
-class GeorgeNavbar extends React.Component {
+import {store} from './store.jsx';
+import {updateNavBarContent} from './actions.jsx';
+import GeorgeNavBar from './components/GeorgeNavBar.jsx';
+import SearchBox from './components/SearchBox.jsx';
 
-    constructor(props) {
-        super(props);
-    }
-
-    render = () => {
-        return (
-           <nav className="navbar navbar-default">
-              <div className="container-fluid">
-                <div className="navbar-header">
-                  <button type="button" className="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
-                    <span className="sr-only">Toggle navigation</span>
-                    <span className="icon-bar"></span>
-                    <span className="icon-bar"></span>
-                    <span className="icon-bar"></span>
-                  </button>
-                  <a className="navbar-brand" href="#">George</a>
-                </div>
-
-                <div className="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
-                  <ul className="nav navbar-nav">
-                    {this.props.leftContent}
-                  </ul>
-                  {this.props.centerContent}
-                </div>
-              </div>
-          </nav>
-        )
-    }
-}
 
 class ExploreSearchComponent extends React.Component {
   constructor(props) {
@@ -84,51 +58,66 @@ class CommunitySnapshotComponent extends React.Component {
   }
 }
 
-class SearchBox extends React.Component {
+class AppFrame extends React.Component {
+  state = {
+    leftContent: null,
+    centerContent: <SearchBox handleSubmit={(event) => {
+      console.log('handleSearchBoxSubmit');
+      // if the key pressed is not the enter key then exit.
+      if (event.charCode !=  13) {
+        return;
+      }
+      this.props.history.push('/explore');
+    }}/>,
+    rightContent: null
+  }
+
   constructor(props) {
     super(props);
   }
 
-  render = () => {
-    return (
-       <form className="navbar-form navbar-left" role="search">
-            <div className="form-group">
-                <div className="input-group input-group-lg">
-                  <span className="input-group-addon glyphicon glyphicon-search"
-                        id="sizing-addon1">
-
-                  </span>
-                  <input type="text"
-                         className="form-control"
-                         placeholder="explore topics"
-                         aria-describedby="sizing-addon1"
-                         onKeyPress={this.props.handleSubmit}/>
-                </div>
-            </div>
-       </form>
-    )
+  componentDidMount() {
+    store.subscribe(() => {
+      let storeState = store.getState();
+      this.setState({
+        leftContent: storeState.navBarContent.leftContent,
+        centerContent: storeState.navBarContent.centerContent,
+        rightContent: storeState.navBarContent.rightContent,
+      });
+    });
   }
-}
 
-class AppFrame extends React.Component {
   render = () => {
-    let searchBox = <SearchBox handleSubmit={this.handleSearchBoxSubmit}/>;
     return (
             <div>
-                <GeorgeNavbar centerContent={searchBox}/>
-                <div className="content container-fluid">
-                    {this.props.children}
-                </div>
+            <nav className="navbar navbar-default">
+               <div className="container-fluid">
+                 <div className="navbar-header">
+                   <button type="button" className="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                     <span className="sr-only">Toggle navigation</span>
+                     <span className="icon-bar"></span>
+                     <span className="icon-bar"></span>
+                     <span className="icon-bar"></span>
+                   </button>
+                   <a className="navbar-brand" href="#">George</a>
+                 </div>
+
+                 <div className="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                   <ul className="nav navbar-nav">
+                     {this.state.leftContent}
+                   </ul>
+                   {this.state.centerContent}
+                   <ul className="nav navbar-nav navbar-right">
+                     {this.state.rightContent}
+                   </ul>
+                 </div>
+               </div>
+           </nav>
+            <div className="content container-fluid">
+                {this.props.children}
+            </div>
             </div>
     )
-  }
-
-  handleSearchBoxSubmit = (event) => {
-    // if the key pressed is not the enter key then exit.
-    if (event.charCode !=  13) {
-      return;
-    }
-    this.props.history.push('/explore');
   }
 }
 
@@ -152,6 +141,14 @@ class TrendingPage extends React.Component {
 }
 
 class ExplorePage extends React.Component {
+
+  componentDidMount() {
+    let navBarContent = {
+      leftContent: <li><a href="">Explore</a></li>
+    }
+    store.dispatch(updateNavBarContent(navBarContent));
+  }
+
   render() {
     return (
       <div>
