@@ -4,8 +4,8 @@ import { Router, Route, Link, IndexRoute, hashHistory } from 'react-router';
 
 import {store} from './store.jsx';
 import {updateNavBarContent} from './actions.jsx';
-import GeorgeNavBar from './components/GeorgeNavBar.jsx';
 import SearchBox from './components/SearchBox.jsx';
+import DashboardPage from './dashboard/dashboard.jsx';
 
 
 class ExploreSearchComponent extends React.Component {
@@ -38,35 +38,15 @@ class ExploreInputComponent extends React.Component {
   }
 }
 
-class CommunitySnapshotComponent extends React.Component {
-  constructor(props) {
-    super(props);
-  }
-
-  render = () => {
-    return (
-      <div className="panel panel-primary">
-          <div className="panel-heading">
-            <h3 className="panel-title">Panel primary</h3>
-          </div>
-          <div className="panel-body">
-            Panel content
-          </div>
-    </div>
-
-    )
-  }
-}
-
 class AppFrame extends React.Component {
   state = {
     leftContent: null,
     centerContent: <SearchBox handleSubmit={(event) => {
-      console.log('handleSearchBoxSubmit');
       // if the key pressed is not the enter key then exit.
       if (event.charCode !=  13) {
         return;
       }
+      event.preventDefault();
       this.props.history.push('/explore');
     }}/>,
     rightContent: null
@@ -121,16 +101,6 @@ class AppFrame extends React.Component {
   }
 }
 
-class HomePage extends React.Component {
-  render() {
-    let panels = [1,2,3,4].map((x) =>  <CommunitySnapshotComponent key={x} />);
-    return (
-        <div className="col-md-8 col-md-offset-2">
-          {panels}
-        </div>)
-  }
-}
-
 class TrendingPage extends React.Component {
   render() {
     return (
@@ -162,7 +132,7 @@ class ExplorePage extends React.Component {
 ReactDOM.render(
     <Router  history={hashHistory}>
         <Route path="/" component={AppFrame}>
-          <IndexRoute component={HomePage} />
+          <IndexRoute component={DashboardPage} />
           <Route path="explore" component={ExplorePage} />
           <Route path="trending" component={TrendingPage} />
         </Route>
