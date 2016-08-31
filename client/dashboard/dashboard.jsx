@@ -2,18 +2,21 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import moment from 'moment';
 import axios from 'axios';
+import {Enum} from 'enumify';
 
 import Dropdown from '../components/Dropdown.jsx';
 import {communities} from '../stubs/communities.jsx';
 
-const DATE_RANGE = {
-  PAST_90_DAYS: "Past 90 Days",
-  PAST_30_DAYS: "Past 30 Days",
-  PAST_7_DAYS: "Past 7 Days",
-  PAST_DAY: "Past Day",
-  PAST_4_HOURS: "Past 4 Hours",
-  CUSTOM_TIME_RANGE: "Custom Time Range"
-}
+class DateRange extends Enum {}
+
+DateRange.initEnum({
+  PAST_DAY: {displayName: "Past Day"},
+  PAST_4_HOURS: {displayName: "Past 4 Hours"},
+  PAST_7_DAYS: {displayName: 'Past 7 Days'},
+  PAST_30_DAYS: {displayName: 'Past 30 Days'},
+  PAST_90_DAYS: {displayName: 'Past 90 Days'},
+  CUSTOM_TIME_RANGE: {displayName: "Custom Time Range"}
+});
 
 class CommunitySnapshotComponent extends React.Component {
   constructor(props) {
@@ -22,11 +25,8 @@ class CommunitySnapshotComponent extends React.Component {
 
   render = () => {
     // TODO(simplyfaisal): figure out a cleaner way to do this.
-    let options = [
-        DATE_RANGE.PAST_DAY, DATE_RANGE.PAST_4_HOURS,
-        DATE_RANGE.PAST_7_DAYS, DATE_RANGE.PAST_30_DAYS,
-        DATE_RANGE.PAST_90_DAYS, DATE_RANGE.CUSTOM_TIME_RANGE].map((x, i) => {
-        return {id: i, displayName: x};
+    let options = DateRange.enumValues.map((dateRange, i) => {
+        return {id: i, displayName: dateRange.displayName, dateRange};
       });
     return (
       <div className="panel panel-primary">
@@ -44,36 +44,44 @@ class CommunitySnapshotComponent extends React.Component {
   dropDownClickHandler = (item) => {
     let end = moment();
     let start;
+    let interval;
     switch(item.dateRange) {
-      case DATE_RANGE.PAST_DAY:
-        start = moment.subtract(1, 'days');
+      case DateRange.PAST_DAY:
+        start = moment().subtract(1, 'days');
+        interval = 'day';
         break;
-      case DATE_RANGE.PAST_4_HOURS:
-        start = moment.subtract(1, 'hours');
+      case DateRange.PAST_4_HOURS:
+        start = moment().subtract(1, 'hours');
+        interval = 'hour';
         break;
-      case DATE_RANGE.PAST_7_DAYS:
-        start = moment.subtract(7, 'days');
+      case DateRange.PAST_7_DAYS:
+        start = moment().subtract(7, 'days');
+        interval = 'day'
         break;
-      case DATE_RANGE.PAST_30_DAYS:
-        start = moment.subtract(30, 'days');
+      case DateRange.PAST_30_DAYS:
+        start = moment().subtract(30, 'days');
+        interval = 'day';
         break;
-      case DATE_RANGE.PAST_90_DAYS:
-        start = moment.subtract(90, 'days');
+      case DateRange.PAST_90_DAYS:
+        start = moment().subtract(90, 'days');
+        interval = 'week'
         break;
-      case DATE_RANGE.CUSTOM_TIME_RANGE:
+      case DateRange.CUSTOM_TIME_RANGE:
         break;
       default:
         break;
     }
     let config = {
       params: {
-        start: start.utc.format(),
-        end: end.utc.format()
+        community_id: this.props.community.displayName,
+        start: start.format(),
+        end: end.format(),
+        interval
       }
     };
-    axios.get('/', config)
+    axios.get('http://localhost:8000/snapshot', config)
       .then((response) => {
-
+        console.log(response);
       })
       .catch((error) => {
 
@@ -82,8 +90,25 @@ class CommunitySnapshotComponent extends React.Component {
 }
 
 export default class DashboardPage extends React.Component {
-  render() {
-    let panels = communities.map((x, i) =>  <CommunitySnapshotComponent key={i} community={x} />);
+  state = {data: []};
+
+  componentDidMount = () => {
+    axios.get('http://localhost:8000/dashboard')
+      .then((response) => {
+        this.setState({data: response.data});
+      })
+      .catch((error) => {
+
+      });
+  }
+
+  render = () => {
+    let panels = this.state.data.map((communityData, i) =>  {
+      return <CommunitySnapshotComponent
+        key={i}
+        community={communityData.community}
+        data={communityData.data} />;
+    });
     return (
         <div className="col-md-8 col-md-offset-2">
           {panels}

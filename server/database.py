@@ -18,10 +18,19 @@ class Community(DocType):
     def save(self, **kwargs):
         return super(Community, self).save(**kwargs)
 
+    def to_json(self):
+        return {
+            '_id': self._id,
+            'identifier': self.identifier,
+            'displayName': self.displayName
+        }
+
 
 @GeorgeIndex.doc_type
 class Message(DocType):
-    text = String(analyzer='snowball', fields={'raw': String(index='not_analyzed')})
+    text = String(
+        analyzer='snowball',
+        fields={'raw': String(index='not_analyzed')})
     community = String()
     date = Date()
 
