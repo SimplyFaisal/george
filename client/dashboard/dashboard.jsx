@@ -19,8 +19,30 @@ DateRange.initEnum({
 });
 
 class CommunitySnapshotComponent extends React.Component {
+  state = {activity: [], trending: []}
   constructor(props) {
     super(props);
+  }
+
+  componentDidMount = () => {
+    let end = moment();
+    let start = moment().subtract(1, 'days');
+    let interval = 'day';
+    let config = {
+      params: {
+        community_id: this.props.community.displayName,
+        start: start.utc().format(),
+        end: end.utc().format(),
+        interval
+      }
+    };
+    this.loadData(config)
+      .then((response) => {
+        this.setState({activity: response.data});
+      })
+      .catch((error)=> {
+
+      });
   }
 
   render = () => {
@@ -35,7 +57,7 @@ class CommunitySnapshotComponent extends React.Component {
             <Dropdown options={options} handleClick={this.dropDownClickHandler}/>
           </div>
           <div className="panel-body">
-            Panel content
+            {this.state.activity}
           </div>
     </div>
     )
@@ -73,13 +95,13 @@ class CommunitySnapshotComponent extends React.Component {
     }
     let config = {
       params: {
-        community_id: this.props.community.displayName,
+        community_id: this.props.community.identifier,
         start: start.format(),
         end: end.format(),
         interval
       }
     };
-    axios.get('http://localhost:8000/snapshot', config)
+    this.loadData(config)
       .then((response) => {
         console.log(response);
       })
@@ -87,15 +109,19 @@ class CommunitySnapshotComponent extends React.Component {
 
       });
   }
+
+  loadData = (config) => {
+    return axios.get('http://localhost:8000/snapshot', config);
+  }
 }
 
 export default class DashboardPage extends React.Component {
-  state = {data: []};
+  state = {communities: []};
 
   componentDidMount = () => {
-    axios.get('http://localhost:8000/dashboard')
+    axios.get('http://localhost:8000/communities')
       .then((response) => {
-        this.setState({data: response.data});
+        this.setState({communities: response.data});
       })
       .catch((error) => {
 
@@ -103,7 +129,7 @@ export default class DashboardPage extends React.Component {
   }
 
   render = () => {
-    let panels = this.state.data.map((communityData, i) =>  {
+    let panels = this.state.communities.map((communityData, i) =>  {
       return <CommunitySnapshotComponent
         key={i}
         community={communityData.community}

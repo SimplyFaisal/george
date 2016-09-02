@@ -1,4 +1,5 @@
 import json
+from bson import json_util
 from datetime import datetime
 
 import falcon
@@ -16,12 +17,26 @@ client = Elasticsearch()
 class TimeSeriesSearch(FacetedSearch):
     doc_types = [database.Message]
     # fields that should be searched
-    fields = ['text']
+    fields = ['text', 'community']
 
     facets = {
         'activity': DateHistogramFacet(field='date', interval='day')
     }
 
+    def __init__(self, date_range, interval):
+        self.date_range = date_range
+        self.interval = interval
+        self.facets['activity'] = DateHistogramFacet(
+            field='date', interval=interval)
+        super(TimeSeriesSearch, self).__init__()
+
+    def search(self):
+        # override methods to add custom pieces
+        interval_query = {'gte': self.date_range.start,
+            'lte': self.date_range.end}
+        s = super(TimeSeriesSearch, self).search() \
+            .filter('range', date=interval_query)
+        return s
 
 class GetCommunitiesTask(object):
 
@@ -40,47 +55,45 @@ class GetTrendingTopicsTask(object):
 class GetCommunityActivityTask(object):
 
     @staticmethod
-    def execute(community, date_range):
-        ts = TimeSeriesSearch() \
-            .filter(
-                'range',
-                date={'gte': date_range.start, 'lte': date_range.end})
-        return ts.execute()
+    def execute(community_id, date_range, interval):
+        ts = TimeSeriesSearch(date_range, interval).execute()
+        return [{'date': point[0], 'count': point[1]}
+            for point in ts.facets.activity]
 
 
 class DateRange(object):
 
-    def _init__(self, start=None, end=None):
+    def __init__(self, start, end):
         self.start = start
         self.end = end
 
     @staticmethod
     def from_date_strings(start, end):
-        fmt = '%Y-%m-%dT%H:%M:%S%z'
+        fmt = '%Y-%m-%dT%H:%M:%SZ'
         return DateRange(
-            start=datetime.strptime(start, fmt),
-            end=datetime.strptime(start, fmt))
+            datetime.strptime(start, fmt), datetime.strptime(end, fmt))
 
 
-class DashboardService(object):
+class CommunitiesService(object):
 
     def on_get(self, request, response):
         communities = GetCommunitiesTask.execute()
-        date_range = DateRange.from_date_strings(
-            request.get_param('start'),
-            request.get_param('end'))
-        for community in communities:
-            activity = GetCommunityActivityTask.execute(community, date_range)
-            print activity
         response.body = json.dumps(
-            [{'community': community.to_json()} for community in communities])
+            [{'community': community.to_dict()} for community in communities])
 
 
 class CommunitySnapshotService(object):
 
     def on_get(self, request, response):
-        response.body = 'CommunitySnapshotService'
+        date_range = DateRange.from_date_strings(
+            request.get_param('start'),
+            request.get_param('end'))
+        activity = GetCommunityActivityTask.execute(
+            request.get_param('community_id'),
+            date_range,
+            request.get_param('interval'))
+        response.body = json.dumps(activity, default=json_util.default)
 
 api = falcon.API(middleware=[cors.middleware])
-api.add_route('/dashboard', DashboardService())
+api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())
