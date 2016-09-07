@@ -5,6 +5,7 @@ import axios from 'axios';
 import {Enum} from 'enumify';
 
 import Dropdown from '../components/Dropdown.jsx';
+import {ChartData, LineDataset, TimeSeriesChart} from '../charts.jsx';
 import {communities} from '../stubs/communities.jsx';
 
 class DateRange extends Enum {}
@@ -19,7 +20,7 @@ DateRange.initEnum({
 });
 
 class CommunitySnapshotComponent extends React.Component {
-  state = {activity: [], trending: []}
+  state = {activity: new ChartData(), trending: []}
   constructor(props) {
     super(props);
   }
@@ -27,7 +28,7 @@ class CommunitySnapshotComponent extends React.Component {
   componentDidMount = () => {
     let end = moment();
     let start = moment().subtract(1, 'days');
-    let interval = 'day';
+    let interval = 'hour';
     let config = {
       params: {
         community_id: this.props.community.displayName,
@@ -37,17 +38,19 @@ class CommunitySnapshotComponent extends React.Component {
       }
     };
     this.loadData(config)
-      .then((response) => {
-        this.setState({activity: response.data});
-      })
-      .catch((error)=> {
-
-      });
+      .then(function(response) {
+        let chartData = new ChartData();
+        let lineDataset = this.toLineDataset(response.data);
+        chartData.addDataset(lineDataset)
+            .setType('line');
+        this.setState({activity: chartData});
+      }.bind(this));
   }
 
   render = () => {
     // TODO(simplyfaisal): figure out a cleaner way to do this.
-    let options = DateRange.enumValues.map((dateRange, i) => {
+    let ranges = [DateRange.PAST_DAY, DateRange.PAST_4_HOURS, DateRange.PAST_7_DAYS];
+    let options = ranges.map((dateRange, i) => {
         return {id: i, displayName: dateRange.displayName, dateRange};
       });
     return (
@@ -57,7 +60,9 @@ class CommunitySnapshotComponent extends React.Component {
             <Dropdown options={options} handleClick={this.dropDownClickHandler}/>
           </div>
           <div className="panel-body">
-            {this.state.activity}
+            <TimeSeriesChart
+              id={this.props.community.identifier}
+              chartData={this.state.activity}/>
           </div>
     </div>
     )
@@ -70,10 +75,10 @@ class CommunitySnapshotComponent extends React.Component {
     switch(item.dateRange) {
       case DateRange.PAST_DAY:
         start = moment().subtract(1, 'days');
-        interval = 'day';
+        interval = 'hour';
         break;
       case DateRange.PAST_4_HOURS:
-        start = moment().subtract(1, 'hours');
+        start = moment().subtract(4, 'hours');
         interval = 'hour';
         break;
       case DateRange.PAST_7_DAYS:
@@ -86,7 +91,7 @@ class CommunitySnapshotComponent extends React.Component {
         break;
       case DateRange.PAST_90_DAYS:
         start = moment().subtract(90, 'days');
-        interval = 'week'
+        interval = 'month';
         break;
       case DateRange.CUSTOM_TIME_RANGE:
         break;
@@ -96,22 +101,35 @@ class CommunitySnapshotComponent extends React.Component {
     let config = {
       params: {
         community_id: this.props.community.identifier,
-        start: start.format(),
-        end: end.format(),
+        start: start.utc().format(),
+        end: end.utc().format(),
         interval
       }
     };
     this.loadData(config)
-      .then((response) => {
-        console.log(response);
-      })
-      .catch((error) => {
-
-      });
+        .then((response) => {
+            let chartData = new ChartData();
+            let lineDataset = this.toLineDataset(response.data);
+            chartData.addDataset(lineDataset)
+                .setType('line');
+            this.setState({activity: chartData});
+        });
   }
 
   loadData = (config) => {
     return axios.get('http://localhost:8000/snapshot', config);
+  }
+
+  toLineDataset = (data) => {
+    let transformed = data.map((d) => {
+      return {
+        x: d.key,
+        y: d.doc_count
+      };
+    });
+    let lineDataset = new LineDataset(this.props.community.identifier);
+    lineDataset.addAllData(transformed);
+    return lineDataset;
   }
 }
 
@@ -122,9 +140,6 @@ export default class DashboardPage extends React.Component {
     axios.get('http://localhost:8000/communities')
       .then((response) => {
         this.setState({communities: response.data});
-      })
-      .catch((error) => {
-
       });
   }
 
@@ -136,8 +151,11 @@ export default class DashboardPage extends React.Component {
         data={communityData.data} />;
     });
     return (
+      <div className="row">
         <div className="col-md-8 col-md-offset-2">
           {panels}
-        </div>)
+        </div>
+      </div>
+    )
   }
 }

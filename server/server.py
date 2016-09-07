@@ -5,7 +5,7 @@ from datetime import datetime
 import falcon
 import falcon_cors
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import FacetedSearch, DateHistogramFacet
+from elasticsearch_dsl import Search, A
 
 
 import database
@@ -13,30 +13,6 @@ import database
 cors = falcon_cors.CORS(allow_origins_list=['http://localhost:8080'])
 client = Elasticsearch()
 
-
-class TimeSeriesSearch(FacetedSearch):
-    doc_types = [database.Message]
-    # fields that should be searched
-    fields = ['text', 'community']
-
-    facets = {
-        'activity': DateHistogramFacet(field='date', interval='day')
-    }
-
-    def __init__(self, date_range, interval):
-        self.date_range = date_range
-        self.interval = interval
-        self.facets['activity'] = DateHistogramFacet(
-            field='date', interval=interval)
-        super(TimeSeriesSearch, self).__init__()
-
-    def search(self):
-        # override methods to add custom pieces
-        interval_query = {'gte': self.date_range.start,
-            'lte': self.date_range.end}
-        s = super(TimeSeriesSearch, self).search() \
-            .filter('range', date=interval_query)
-        return s
 
 class GetCommunitiesTask(object):
 
@@ -56,9 +32,13 @@ class GetCommunityActivityTask(object):
 
     @staticmethod
     def execute(community_id, date_range, interval):
-        ts = TimeSeriesSearch(date_range, interval).execute()
-        return [{'date': point[0], 'count': point[1]}
-            for point in ts.facets.activity]
+        date_filter = {'gte': date_range.start, 'lte': date_range.end}
+        s = Search().filter('range', date=date_filter)\
+            .filter('match', community=community_id)
+        s.aggs.bucket(
+            'activity', 'date_histogram', field='date', interval=interval)
+        response = s.execute()
+        return response.aggregations.activity.buckets
 
 
 class DateRange(object):
@@ -92,8 +72,8 @@ class CommunitySnapshotService(object):
             request.get_param('community_id'),
             date_range,
             request.get_param('interval'))
-        response.body = json.dumps(activity, default=json_util.default)
-
+        response.body = json.dumps(
+            [a.to_dict() for a in activity], default=json_util.default)
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())
