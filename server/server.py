@@ -68,12 +68,14 @@ class CommunitySnapshotService(object):
         date_range = DateRange.from_date_strings(
             request.get_param('start'),
             request.get_param('end'))
-        activity = GetCommunityActivityTask.execute(
+        activity_query_response = GetCommunityActivityTask.execute(
             request.get_param('community_id'),
             date_range,
             request.get_param('interval'))
-        response.body = json.dumps(
-            [a.to_dict() for a in activity], default=json_util.default)
+        activities_as_dict = [activity.to_dict()
+            for activity in activity_query_response]
+        _response = {'activity': activities_as_dict, 'trending': []}
+        response.body = json.dumps(_response, default=json_util.default)
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())

@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom';
 import moment from 'moment';
 import axios from 'axios';
 import {Enum} from 'enumify';
+import Select from 'react-select';
 
+import {store} from '../store.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import {ChartData, LineDataset, TimeSeriesChart} from '../charts.jsx';
 import {communities} from '../stubs/communities.jsx';
@@ -19,60 +21,204 @@ DateRange.initEnum({
   CUSTOM_TIME_RANGE: {displayName: "Custom Time Range"}
 });
 
+
+class CommunityMultiSelectDropDown extends React.Component {
+  state = {
+    value: [],
+    options: []
+  }
+
+  componentDidMount = () => {
+    let self = this;
+    store.subscribe(() => {
+      let storeState = store.getState();
+      self.setState({
+        options: storeState.communities.map(this.communityToOption),
+      });
+    });
+  }
+
+  communityToOption = (i) => {
+    return {
+      value: i.community.identifier,
+      label: i.community.displayName,
+      community: i.community
+    };
+  }
+
+
+  render = () => {
+    return (
+      <Select
+          multi
+          name="community-multi-select"
+          value={this.state.value}
+          options={this.state.options}
+          onChange={this.onChange}
+          placeholder="Select your communities..."
+      />
+    )
+  }
+
+  onChange = (value) => {
+    this.setState({value});
+    this.props.onChange(value.map(v => v.community));
+  }
+}
+
+
+class DateRangeDropDown extends React.Component {
+  state = {
+      value: "",
+  }
+
+  render = () => {
+    let dateRangeOptions = this.props.dateRangeList.map((range) => {
+      return {value: range.name, label: range.displayName, range};
+    });
+
+    return (
+      <Select
+          multi={false}
+          name="date-range-select"
+          value={this.state.value}
+          options={dateRangeOptions}
+          onChange={this.onChange}
+          placeholder="Select a date range"
+      />
+    )
+  }
+
+  onChange = (value) => {
+    this.setState({value});
+    this.props.onChange(value.range);
+  }
+}
+
+
+class DashboardFilterComponent extends React.Component {
+  state = {
+    communities: [],
+    dateRange: null,
+  }
+  render = () => {
+    let ranges = [DateRange.PAST_DAY, DateRange.PAST_4_HOURS, DateRange.PAST_7_DAYS];
+    return (
+      <div className="panel panel-default">
+        <div className="panel-body">
+          <div className="col-md-8">
+            <CommunityMultiSelectDropDown
+              onChange={this.handleCommunitiesChange}
+            />
+          </div>
+
+          <div className="col-md-2">
+            <DateRangeDropDown
+              dateRangeList={ranges}
+              onChange={this.handleDateRangeChange}
+            />
+          </div>
+          <a className="btn btn-default" onClick={this.handleSubmit}>
+            Search
+          </a>
+        </div>
+      </div>
+    )
+  }
+
+  handleCommunitiesChange = (communities) => {
+    this.setState({communities})
+  }
+
+  handleDateRangeChange = (dateRange) => {
+    this.setState({dateRange})
+  }
+
+  handleSubmit = (event) => {
+    event.preventDefault();
+    let filters = {
+      communities: this.state.communities,
+      dateRange: this.state.dateRange
+    };
+    this.props.onSubmit(filters);
+  }
+}
+
+
 class CommunitySnapshotComponent extends React.Component {
-  state = {activity: new ChartData(), trending: []}
+
   constructor(props) {
     super(props);
   }
 
-  componentDidMount = () => {
-    let end = moment();
-    let start = moment().subtract(1, 'days');
-    let interval = 'hour';
-    let config = {
-      params: {
-        community_id: this.props.community.displayName,
-        start: start.utc().format(),
-        end: end.utc().format(),
-        interval
-      }
-    };
-    this.loadData(config)
-      .then(function(response) {
-        let chartData = new ChartData();
-        let lineDataset = this.toLineDataset(response.data);
-        chartData.addDataset(lineDataset)
-            .setType('line');
-        this.setState({activity: chartData});
-      }.bind(this));
-  }
-
   render = () => {
-    // TODO(simplyfaisal): figure out a cleaner way to do this.
-    let ranges = [DateRange.PAST_DAY, DateRange.PAST_4_HOURS, DateRange.PAST_7_DAYS];
-    let options = ranges.map((dateRange, i) => {
-        return {id: i, displayName: dateRange.displayName, dateRange};
-      });
+    let chartData = new ChartData()
+        .setType('line')
+        .addDataset(this.toLineDataset(this.props.data.activity));
     return (
       <div className="panel panel-primary">
           <div className="panel-heading">
             <h3 className="panel-title">{this.props.community.displayName}</h3>
-            <Dropdown options={options} handleClick={this.dropDownClickHandler}/>
           </div>
           <div className="panel-body">
             <TimeSeriesChart
               id={this.props.community.identifier}
-              chartData={this.state.activity}/>
+              chartData={chartData}/>
           </div>
     </div>
     )
   }
 
-  dropDownClickHandler = (item) => {
+  toLineDataset = (data) => {
+    let transformed = data.map((d) => {
+      return {
+        x: d.key,
+        y: d.doc_count
+      };
+    });
+    let lineDataset = new LineDataset(this.props.community.displayName);
+    lineDataset.addAllData(transformed);
+    return lineDataset;
+  }
+}
+
+export default class DashboardPage extends React.Component {
+  state = {
+    data: []
+  }
+
+  render = () => {
+    let panels = this.state.data.map((i) => {
+      return (
+        <CommunitySnapshotComponent
+          key={i.community.identifier}
+          community={i.community}
+          data={i.data}/>
+      )
+    });
+    return (
+     <div>
+        <div className="row">
+          <div className="col-md-12">
+            <DashboardFilterComponent
+              onSubmit={this.handleDashboardFilterSubmit}
+            />
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-md-8 col-md-offset-2">
+            {panels}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  handleDashboardFilterSubmit = (filters) => {
     let end = moment();
     let start;
     let interval;
-    switch(item.dateRange) {
+    switch(filters.dateRange) {
       case DateRange.PAST_DAY:
         start = moment().subtract(1, 'days');
         interval = 'hour';
@@ -98,64 +244,26 @@ class CommunitySnapshotComponent extends React.Component {
       default:
         break;
     }
-    let config = {
-      params: {
-        community_id: this.props.community.identifier,
-        start: start.utc().format(),
-        end: end.utc().format(),
-        interval
-      }
-    };
-    this.loadData(config)
-        .then((response) => {
-            let chartData = new ChartData();
-            let lineDataset = this.toLineDataset(response.data);
-            chartData.addDataset(lineDataset)
-                .setType('line');
-            this.setState({activity: chartData});
-        });
-  }
-
-  loadData = (config) => {
-    return axios.get('http://localhost:8000/snapshot', config);
-  }
-
-  toLineDataset = (data) => {
-    let transformed = data.map((d) => {
-      return {
-        x: d.key,
-        y: d.doc_count
+    let requests = filters.communities.map((community) => {
+      let config = {
+        params: {
+          community_id: community.identifier,
+          start: start.utc().format(),
+          end: end.utc().format(),
+          interval
+        }
       };
+      return axios.get('http://localhost:8000/snapshot', config);
     });
-    let lineDataset = new LineDataset(this.props.community.identifier);
-    lineDataset.addAllData(transformed);
-    return lineDataset;
-  }
-}
-
-export default class DashboardPage extends React.Component {
-  state = {communities: []};
-
-  componentDidMount = () => {
-    axios.get('http://localhost:8000/communities')
-      .then((response) => {
-        this.setState({communities: response.data});
+    axios.all(requests)
+      .then((responses) => {
+        let data = responses.map((response, i) => {
+          return {
+            community: filters.communities[i],
+            data: response.data
+          }
+        });
+        this.setState({data});
       });
-  }
-
-  render = () => {
-    let panels = this.state.communities.map((communityData, i) =>  {
-      return <CommunitySnapshotComponent
-        key={i}
-        community={communityData.community}
-        data={communityData.data} />;
-    });
-    return (
-      <div className="row">
-        <div className="col-md-8 col-md-offset-2">
-          {panels}
-        </div>
-      </div>
-    )
   }
 }

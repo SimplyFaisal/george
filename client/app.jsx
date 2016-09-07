@@ -1,12 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { Router, Route, Link, IndexRoute, hashHistory } from 'react-router';
+import axios from 'axios';
 
 import {store} from './store.jsx';
-import {updateNavBarContent} from './actions.jsx';
+import {updateNavBarContent, getCommunities} from './actions.jsx';
 import SearchBox from './components/SearchBox.jsx';
 import DashboardPage from './dashboard/dashboard.jsx';
-
 
 class ExploreSearchComponent extends React.Component {
   constructor(props) {
@@ -57,6 +57,11 @@ class AppFrame extends React.Component {
   }
 
   componentDidMount() {
+    store.dispatch(updateNavBarContent({
+      leftContent: this.state.leftContent,
+      centerContent: this.state.centerContent,
+      rightContent: this.state.rightContent
+    }));
     store.subscribe(() => {
       let storeState = store.getState();
       this.setState({
@@ -65,12 +70,17 @@ class AppFrame extends React.Component {
         rightContent: storeState.navBarContent.rightContent,
       });
     });
+
+    axios.get('http://localhost:8000/communities')
+      .then((response) => {
+        store.dispatch(getCommunities(response.data));
+      });
   }
 
   render = () => {
     return (
             <div>
-            <nav className="navbar navbar-default">
+            <nav className="navbar navbar-primary">
                <div className="container-fluid">
                  <div className="navbar-header">
                    <button type="button" className="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
