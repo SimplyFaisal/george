@@ -4,6 +4,7 @@ import moment from 'moment';
 import axios from 'axios';
 import {Enum} from 'enumify';
 import Select from 'react-select';
+import * as d3 from "d3";
 
 import {store} from '../store.jsx';
 import Dropdown from '../components/Dropdown.jsx';
@@ -147,14 +148,19 @@ class DashboardFilterComponent extends React.Component {
 
 class CommunitySnapshotComponent extends React.Component {
 
+  state = {activityData: [], trendingData: []}
   constructor(props) {
     super(props);
   }
 
+  componentDidMount = () => {
+    this.setState({
+        activityData: this.props.activityData,
+        trendingData: this.props.trendingData
+    });
+  }
+
   render = () => {
-    let chartData = new ChartData()
-        .setType('line')
-        .addDataset(this.toLineDataset(this.props.data.activity));
     return (
       <div className="panel panel-primary">
           <div className="panel-heading">
@@ -163,22 +169,10 @@ class CommunitySnapshotComponent extends React.Component {
           <div className="panel-body">
             <TimeSeriesChart
               id={this.props.community.identifier}
-              chartData={chartData}/>
+              data={this.state.activityData}/>
           </div>
     </div>
     )
-  }
-
-  toLineDataset = (data) => {
-    let transformed = data.map((d) => {
-      return {
-        x: d.key,
-        y: d.doc_count
-      };
-    });
-    let lineDataset = new LineDataset(this.props.community.displayName);
-    lineDataset.addAllData(transformed);
-    return lineDataset;
   }
 }
 
@@ -193,7 +187,8 @@ export default class DashboardPage extends React.Component {
         <CommunitySnapshotComponent
           key={i.community.identifier}
           community={i.community}
-          data={i.data}/>
+          activityData={i.activityData}
+          trendingData={i.trendingData}/>
       )
     });
     return (
@@ -247,7 +242,7 @@ export default class DashboardPage extends React.Component {
     let requests = filters.communities.map((community) => {
       let config = {
         params: {
-          community_id: community.identifier,
+          community_id: community.displayName,
           start: start.utc().format(),
           end: end.utc().format(),
           interval
@@ -257,10 +252,24 @@ export default class DashboardPage extends React.Component {
     });
     axios.all(requests)
       .then((responses) => {
+        function getExtreme(dataList, fn) {
+          return fn(d3.merge(dataList), (d) => {return d.doc_count});
+        }
+
+        let activities = responses.map((i) => {return i.data.activity});
+        let yMin = getExtreme(activities, d3.min);
+        let yMax = getExtreme(activities, d3.max);
+
         let data = responses.map((response, i) => {
           return {
             community: filters.communities[i],
-            data: response.data
+            activityData: {
+              data: response.data.activity,
+              options: {yMin, yMax}
+            },
+            trendingData: {
+              data: response.data.trending
+            }
           }
         });
         this.setState({data});

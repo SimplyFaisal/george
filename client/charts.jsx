@@ -1,81 +1,48 @@
 import React from 'react';
 
-import Chart from 'chart.js'
-
-class ChartData {
-  constructor() {
-    this.data = {datasets: []}
-    this.type = '';
-    this.labels = [];
-    this.xLabels = [];
-    this.yLabels = []
-    this.options = {
-        scales: {
-            xAxes: [{
-                type: 'time',
-                position: 'bottom'
-            }]
-        }
-    }
-  }
-
-  addDataset = (dataset) =>{
-    this.data.datasets.push(dataset);
-    return this;
-  }
-
-  addAllDataset = (datasets) => {
-    datasets.forEach(this.addDataset, datasets);
-    return this;
-  }
-
-  setType = (type) => {
-    this.type = type;
-    return this;
-  }
-}
-
-class LineDataset {
-  constructor(label) {
-    this.label = label;
-    this.data = [];
-  }
-
-  addData = (point) => {
-    this.data.push(point);
-  }
-
-  addAllData = (points) => {
-    points.forEach(this.addData);
-  }
-
-  setLabel = (label) => {
-    this.label = label;
-  }
-}
+import Plottable from 'plottable';
+import * as d3 from "d3";
 
 class TimeSeriesChart extends React.Component {
-  static defaultProps = {
-    chartData: new ChartData()
-  }
   constructor(props) {
     super(props);
 
   }
-  componentDidMount = () => {
-    this.ctx = document.getElementById(this.getChartId());
-    this.chart = new Chart(this.ctx, this.props.chartData);
-  }
-
   componentWillReceiveProps = (nextProps) => {
-    let ctx = document.getElementById(this.getChartId());
-    let chart = new Chart(ctx, nextProps.chartData);
+    let data = nextProps.data.data.map((d) => {
+      d.key = new Date(d.key);
+      return d;
+    });
+
+    let options = nextProps.data.options;
+    let xScale = new Plottable.Scales.Time()
+        .domain(d3.extent(data, (d) => {return d.key}));
+    let yScale = new Plottable.Scales.Linear()
+        .domain([options.yMin, options.yMax]);
+
+    let plot = new Plottable.Plots.Line()
+        .addDataset(new Plottable.Dataset(data))
+        .x((d) => { return d.key;}, xScale)
+        .y((d) => { return d.doc_count; }, yScale);
+
+    let xAxis = new Plottable.Axes.Time(xScale, "bottom")
+      .renderTo('#' + this.getChartId());
+    let yAxis = new Plottable.Axes.Numeric(yScale, "left");
+
+    let chart = new Plottable.Components.Table([
+      [yAxis, plot],
+      [null, xAxis]
+    ]);
+
+    chart.renderTo('#' + this.getChartId());
+    window.addEventListener("resize", function() {
+      plot.redraw();
+    });
   }
 
   render = () => {
-    let id = 'time-series-chart-' + this.props.id;
     return (
-      <canvas id={this.getChartId()} width="400" height="100"></canvas>
+      <svg id={this.getChartId()} width="400" height="100"></svg>
     );
   }
 
@@ -84,4 +51,4 @@ class TimeSeriesChart extends React.Component {
   }
 }
 
-export {ChartData, LineDataset, TimeSeriesChart};
+export {TimeSeriesChart};
