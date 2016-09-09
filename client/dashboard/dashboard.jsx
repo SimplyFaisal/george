@@ -5,6 +5,8 @@ import axios from 'axios';
 import {Enum} from 'enumify';
 import Select from 'react-select';
 import * as d3 from "d3";
+import Plottable from 'plottable';
+import { StickyContainer, Sticky } from 'react-sticky';
 
 import {store} from '../store.jsx';
 import Dropdown from '../components/Dropdown.jsx';
@@ -151,6 +153,27 @@ class CommunitySnapshotComponent extends React.Component {
   state = {activityData: [], trendingData: []}
   constructor(props) {
     super(props);
+    this.xScale = new Plottable.Scales.Time();
+    this.yScale = new Plottable.Scales.Linear();
+    this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
+    this.xAxis = new Plottable.Axes.Numeric(this.xScale, "bottom");
+
+    this.sparkline = new Plottable.Plots.Line()
+        .x(d => d.date, this.xScale)
+        .y(d => d.doc_count, this.yScale);
+
+
+    this.scatter = new Plottable.Plots.Scatter();
+    this.scatter.x(d => d.date, this.xScale)
+                .y(d => d.doc_count, this.yScale)
+                .attr("fill", "#001742");
+
+    this.dragbox = new Plottable.Components.XDragBoxLayer();
+    this.dragbox.onDrag((bounds)  => {
+      this.sparkline.selections().attr("fill", "#5279c7");
+      let min = this.xScale.invert(bounds.topLeft.x);
+      let max = this.xScale.invert(bounds.bottomRight.x);
+    });
   }
 
   componentDidMount = () => {
@@ -160,19 +183,55 @@ class CommunitySnapshotComponent extends React.Component {
     });
   }
 
+  componentWillReceiveProps = (nextProps) => {
+    this.setState({
+        activityData: nextProps.activityData,
+        trendingData: nextProps.trendingData
+    });
+  }
+
+  componentDidUpdate = (prevProps, nextState) => {
+    let data = this.state.activityData.data.map((d) => {
+      d.date = new Date(d.key);
+      return d;
+    });
+    let options = this.state.activityData.options;
+    let _id = '#' + this.getId();
+
+    this.xScale.domain(d3.extent(data, d => d.key));
+    this.yScale.domain([options.yMin, options.yMax]);
+
+    this.sparkline.datasets([new Plottable.Dataset(data)]);
+    this.scatter.datasets([new Plottable.Dataset(data)]);
+
+    let group = new Plottable.Components.Group([this.dragbox, this.sparkline, this.scatter])
+    let chart = new Plottable.Components.Table([
+      [this.yAxis, group],
+      [null, this.xAxis]
+    ]);
+    chart.renderTo(_id);
+  }
+
   render = () => {
     return (
-      <div className="panel panel-primary">
-          <div className="panel-heading">
-            <h3 className="panel-title">{this.props.community.displayName}</h3>
-          </div>
-          <div className="panel-body">
-            <TimeSeriesChart
-              id={this.props.community.identifier}
-              data={this.state.activityData}/>
-          </div>
-    </div>
+      <div className="col-md-6">
+          <div className="panel panel-primary">
+              <div className="panel-heading">
+                <h3 className="panel-title">{this.props.community.displayName}</h3>
+              </div>
+              <div className="panel-body">
+                {/* <TimeSeriesChart
+                  id={this.props.community.identifier}
+                  data={this.state.activityData}/> */}
+                  <svg id={this.getId()}> </svg>
+              </div>
+        </div>
+      </div>
     )
+  }
+
+  getId = () => {
+    return this.props.community.identifier;
   }
 }
 
@@ -192,7 +251,8 @@ export default class DashboardPage extends React.Component {
       )
     });
     return (
-     <div>
+     <StickyContainer>
+        <Sticky>
         <div className="row">
           <div className="col-md-12">
             <DashboardFilterComponent
@@ -200,12 +260,13 @@ export default class DashboardPage extends React.Component {
             />
           </div>
         </div>
+        </Sticky>
         <div className="row">
-          <div className="col-md-8 col-md-offset-2">
+          <div className="col-md-12">
             {panels}
           </div>
         </div>
-      </div>
+      </StickyContainer>
     )
   }
 
