@@ -76,6 +76,13 @@ class CommunitySnapshotService(object):
             for activity in activity_query_response]
         _response = {'activity': activities_as_dict, 'trending': []}
         response.body = json.dumps(_response, default=json_util.default)
+
+class TrendingTopicService(object):
+
+    def on_get(self, request, response):
+        response.body = json.dumps('community trending topics service')
+
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())
+api.add_route('/topics', TrendingTopicService())

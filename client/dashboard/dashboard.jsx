@@ -16,12 +16,12 @@ import {communities} from '../stubs/communities.jsx';
 class DateRange extends Enum {}
 
 DateRange.initEnum({
-  PAST_DAY: {displayName: "Past Day"},
-  PAST_4_HOURS: {displayName: "Past 4 Hours"},
-  PAST_7_DAYS: {displayName: 'Past 7 Days'},
-  PAST_30_DAYS: {displayName: 'Past 30 Days'},
-  PAST_90_DAYS: {displayName: 'Past 90 Days'},
-  CUSTOM_TIME_RANGE: {displayName: "Custom Time Range"}
+  PAST_DAY: {displayName: "Past Day", interval: 'hour'},
+  PAST_4_HOURS: {displayName: "Past 4 Hours", interval: 'hour'},
+  PAST_7_DAYS: {displayName: 'Past 7 Days', interval: 'day'},
+  PAST_30_DAYS: {displayName: 'Past 30 Days', interval: 'day'},
+  PAST_90_DAYS: {displayName: 'Past 90 Days', interval: 'day'},
+  CUSTOM_TIME_RANGE: {displayName: "Custom Time Range", interval: 'day'}
 });
 
 
@@ -156,7 +156,7 @@ class CommunitySnapshotComponent extends React.Component {
     this.xScale = new Plottable.Scales.Time();
     this.yScale = new Plottable.Scales.Linear();
     this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
-    this.xAxis = new Plottable.Axes.Numeric(this.xScale, "bottom");
+    this.xAxis = new Plottable.Axes.Time(this.xScale, "bottom");
 
     this.sparkline = new Plottable.Plots.Line()
         .x(d => d.date, this.xScale)
@@ -169,10 +169,21 @@ class CommunitySnapshotComponent extends React.Component {
                 .attr("fill", "#001742");
 
     this.dragbox = new Plottable.Components.XDragBoxLayer();
-    this.dragbox.onDrag((bounds)  => {
-      this.sparkline.selections().attr("fill", "#5279c7");
-      let min = this.xScale.invert(bounds.topLeft.x);
-      let max = this.xScale.invert(bounds.bottomRight.x);
+    let self = this;
+    this.dragbox.onDragEnd((bounds) => {
+      let start = moment(self.xScale.invert(bounds.topLeft.x));
+      let end = moment(self.xScale.invert(bounds.bottomRight.x));
+      let config = {
+        params: {
+          community_id: self.props.community.displayName,
+          start: start.utc().format(),
+          end: end.utc().format(),
+        }
+      };
+      axios.get('http://localhost:8000/topics', config)
+        .then((response) => {
+          console.log(response);
+        });
     });
   }
 
@@ -198,17 +209,23 @@ class CommunitySnapshotComponent extends React.Component {
     let options = this.state.activityData.options;
     let _id = '#' + this.getId();
 
-    this.xScale.domain(d3.extent(data, d => d.key));
+    this.xScale.domain(d3.extent(data, d => d.date));
     this.yScale.domain([options.yMin, options.yMax]);
 
     this.sparkline.datasets([new Plottable.Dataset(data)]);
     this.scatter.datasets([new Plottable.Dataset(data)]);
 
+    let yLabel = new Plottable.Components.AxisLabel("# messages")
+      .xAlignment("left")
+      .yAlignment('top')
+      .angle(90);
+
     let group = new Plottable.Components.Group([this.dragbox, this.sparkline, this.scatter])
     let chart = new Plottable.Components.Table([
-      [this.yAxis, group],
-      [null, this.xAxis]
+      [yLabel, this.yAxis, group],
+      [null, null, this.xAxis]
     ]);
+
     chart.renderTo(_id);
   }
 
@@ -220,10 +237,7 @@ class CommunitySnapshotComponent extends React.Component {
                 <h3 className="panel-title">{this.props.community.displayName}</h3>
               </div>
               <div className="panel-body">
-                {/* <TimeSeriesChart
-                  id={this.props.community.identifier}
-                  data={this.state.activityData}/> */}
-                  <svg id={this.getId()}> </svg>
+                  <svg id={this.getId()} height="250"> </svg>
               </div>
         </div>
       </div>
@@ -232,6 +246,10 @@ class CommunitySnapshotComponent extends React.Component {
 
   getId = () => {
     return this.props.community.identifier;
+  }
+
+  getTrendingTopics(config) {
+    return axios.get('http://localhost:8000/topics', config);
   }
 }
 
@@ -251,8 +269,7 @@ export default class DashboardPage extends React.Component {
       )
     });
     return (
-     <StickyContainer>
-        <Sticky>
+      <div>
         <div className="row">
           <div className="col-md-12">
             <DashboardFilterComponent
@@ -260,13 +277,12 @@ export default class DashboardPage extends React.Component {
             />
           </div>
         </div>
-        </Sticky>
         <div className="row">
           <div className="col-md-12">
             {panels}
           </div>
         </div>
-      </StickyContainer>
+      </div>
     )
   }
 
@@ -277,23 +293,18 @@ export default class DashboardPage extends React.Component {
     switch(filters.dateRange) {
       case DateRange.PAST_DAY:
         start = moment().subtract(1, 'days');
-        interval = 'hour';
         break;
       case DateRange.PAST_4_HOURS:
         start = moment().subtract(4, 'hours');
-        interval = 'hour';
         break;
       case DateRange.PAST_7_DAYS:
         start = moment().subtract(7, 'days');
-        interval = 'day'
         break;
       case DateRange.PAST_30_DAYS:
         start = moment().subtract(30, 'days');
-        interval = 'day';
         break;
       case DateRange.PAST_90_DAYS:
         start = moment().subtract(90, 'days');
-        interval = 'month';
         break;
       case DateRange.CUSTOM_TIME_RANGE:
         break;
@@ -306,7 +317,7 @@ export default class DashboardPage extends React.Component {
           community_id: community.displayName,
           start: start.utc().format(),
           end: end.utc().format(),
-          interval
+          interval: filters.dateRange.interval
         }
       };
       return axios.get('http://localhost:8000/snapshot', config);
