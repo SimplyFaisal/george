@@ -7,36 +7,8 @@ import {store} from './store.jsx';
 import {updateNavBarContent, getCommunities} from './actions.jsx';
 import SearchBox from './components/SearchBox.jsx';
 import DashboardPage from './dashboard/dashboard.jsx';
+import ExplorePage from './explore/explore.jsx';
 
-class ExploreSearchComponent extends React.Component {
-  constructor(props) {
-    super(props);
-  }
-
-  render() {
-    return (
-      <div className="panel panel-default">
-          <div className="panel-body">
-            Basic panel
-          </div>
-      </div>
-      )
-  }
-}
-
-class ExploreInputComponent extends React.Component {
-  constructor(props) {
-    super(props);
-  }
-
-  render = () => {
-    return (
-      <div>
-          <h1>Explore Search Component</h1>
-      </div>
-    )
-  }
-}
 
 class AppFrame extends React.Component {
   state = {
@@ -47,7 +19,10 @@ class AppFrame extends React.Component {
         return;
       }
       event.preventDefault();
-      this.props.history.push('/explore');
+      this.props.history.push({
+          pathname: '/explore',
+          query: {q: event.target.value}
+      });
     }}/>,
     rightContent: null
   }
@@ -119,25 +94,6 @@ class TrendingPage extends React.Component {
         </div>)
   }
 }
-
-class ExplorePage extends React.Component {
-
-  componentDidMount() {
-    let navBarContent = {
-      leftContent: <li><a href="">Explore</a></li>
-    }
-    store.dispatch(updateNavBarContent(navBarContent));
-  }
-
-  render() {
-    return (
-      <div>
-        <ExploreSearchComponent/>
-      </div>
-    )
-  }
-}
-
 
 ReactDOM.render(
     <Router  history={hashHistory}>

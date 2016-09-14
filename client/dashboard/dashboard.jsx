@@ -2,102 +2,15 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import moment from 'moment';
 import axios from 'axios';
-import {Enum} from 'enumify';
 import Select from 'react-select';
 import * as d3 from "d3";
 import Plottable from 'plottable';
 import { StickyContainer, Sticky } from 'react-sticky';
 
 import {store} from '../store.jsx';
-import Dropdown from '../components/Dropdown.jsx';
-import {ChartData, LineDataset, TimeSeriesChart} from '../charts.jsx';
-import {communities} from '../stubs/communities.jsx';
-
-class DateRange extends Enum {}
-
-DateRange.initEnum({
-  PAST_DAY: {displayName: "Past Day", interval: 'hour'},
-  PAST_4_HOURS: {displayName: "Past 4 Hours", interval: 'hour'},
-  PAST_7_DAYS: {displayName: 'Past 7 Days', interval: 'day'},
-  PAST_30_DAYS: {displayName: 'Past 30 Days', interval: 'day'},
-  PAST_90_DAYS: {displayName: 'Past 90 Days', interval: 'day'},
-  CUSTOM_TIME_RANGE: {displayName: "Custom Time Range", interval: 'day'}
-});
-
-
-class CommunityMultiSelectDropDown extends React.Component {
-  state = {
-    value: [],
-    options: []
-  }
-
-  componentDidMount = () => {
-    let self = this;
-    store.subscribe(() => {
-      let storeState = store.getState();
-      self.setState({
-        options: storeState.communities.map(this.communityToOption),
-      });
-    });
-  }
-
-  communityToOption = (i) => {
-    return {
-      value: i.community.identifier,
-      label: i.community.displayName,
-      community: i.community
-    };
-  }
-
-
-  render = () => {
-    return (
-      <Select
-          multi
-          name="community-multi-select"
-          value={this.state.value}
-          options={this.state.options}
-          onChange={this.onChange}
-          placeholder="Select your communities..."
-      />
-    )
-  }
-
-  onChange = (value) => {
-    this.setState({value});
-    this.props.onChange(value.map(v => v.community));
-  }
-}
-
-
-class DateRangeDropDown extends React.Component {
-  state = {
-      value: "",
-  }
-
-  render = () => {
-    let dateRangeOptions = this.props.dateRangeList.map((range) => {
-      return {value: range.name, label: range.displayName, range};
-    });
-
-    return (
-      <Select
-          multi={false}
-          name="date-range-select"
-          value={this.state.value}
-          options={dateRangeOptions}
-          onChange={this.onChange}
-          placeholder="Select a date range"
-      />
-    )
-  }
-
-  onChange = (value) => {
-    this.setState({value});
-    this.props.onChange(value.range);
-  }
-}
-
+import CommunityMultiSelectDropDown from '../components/CommunityMultiSelectDropDown.jsx';
+import DateRangeDropdown from '../components/DateRangeDropdown.jsx';
+import {DateRange} from '../utils.jsx';
 
 class DashboardFilterComponent extends React.Component {
   state = {
@@ -116,7 +29,7 @@ class DashboardFilterComponent extends React.Component {
           </div>
 
           <div className="col-md-2">
-            <DateRangeDropDown
+            <DateRangeDropdown
               dateRangeList={ranges}
               onChange={this.handleDateRangeChange}
             />
