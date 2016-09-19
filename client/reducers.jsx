@@ -2,7 +2,7 @@ import {UPDATE_NAV_BAR_CONTENT, GET_COMMUNITIES} from './actions.jsx';
 
 const initialState = {
   navBarContent: {},
-  communities: [],
+  communities: []
 };
 
 export function georgeApplication(state=initialState, action) {

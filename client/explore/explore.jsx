@@ -9,21 +9,30 @@ import {updateNavBarContent, getCommunities} from '../actions.jsx';
 
 class ExploreSearchComponent extends React.Component {
   state = {
-    terms: []
+    terms: [],
+    communities: [],
+    dateRange: null
   }
   constructor(props) {
     super(props);
   }
 
-  render() {
+  componentDidMount = () => {
+    console.log(this.state);
+  }
+
+  render = () => {
     let ranges = [DateRange.PAST_DAY, DateRange.PAST_4_HOURS, DateRange.PAST_7_DAYS];
-    // let inputs = this.props.params.map((param) => {
-    //     return (
-    //         <div className="col-md-3">
-    //             <ExploreInputComponent/>
-    //         </div>
-    //       )
-    //     });
+    let inputs = this.state.terms.map((x) => {
+      return (
+        <div key={x.id} className="col-md-3">
+          <ExploreInputComponent
+            id={x.id}
+            value={x.value}
+            handleDelete={this.handleDelete}/>
+        </div>
+      );
+    });
     return (
       <div className="panel panel-primary">
         <div className="panel-body">
@@ -40,22 +49,7 @@ class ExploreSearchComponent extends React.Component {
                 </div>
             </div>
             <div className="row">
-                {/* {inputs} */}
-                {/* <div className="col-md-2">
-                    <ExploreInputComponent/>
-                </div>
-                <div className="col-md-2">
-                    <ExploreInputComponent/>
-                </div>
-                <div className="col-md-2">
-                    <ExploreInputComponent/>
-                </div>
-                <div className="col-md-2">
-                    <ExploreInputComponent/>
-                </div>
-                <div className="col-md-2">
-                    <ExploreInputComponent/>
-                </div> */}
+                {inputs}
             </div>
           </div>
         </div>
@@ -80,42 +74,90 @@ class ExploreSearchComponent extends React.Component {
       )
   }
 
+  handleDateRangeChange = (dateRange) => {
+    this.setState({dateRange});
+  }
+
+  handleCommunitiesChange = (communities) => {
+    this.setState({communities});
+  }
+
+  handleSubmit = (event) => {
+    event.preventDefault();
+    console.log(this.state);
+  }
+
+  handleDelete = (term) => {
+    let terms = this.state.terms.filter((x) => x.id != term.id);
+    this.setState({terms});
+  }
+
   addInputComponent = () => {
     let terms = this.state.terms;
     if (terms.length == 4) {
       return;
     }
-    let component = <ExploreInputComponent/>;
-    terms.push(component);
+    terms.push({id: terms.length, value: ''});
     this.setState({terms});
   }
 }
 
 class ExploreInputComponent extends React.Component {
+
+  state = {
+    id: null,
+    value: ''
+  }
+
   constructor(props) {
     super(props);
+  }
+
+  componentDidMount = () => {
+    this.setState({id: this.props.id, value: this.props.value});
   }
 
   render = () => {
     return (
         <div className="">
             <div className="form-group">
-              <input type="text" className="form-control" id="inputDefault"/>
-              <label className="control-label" for="inputDefault">Search term</label>
+              <input
+                type="text"
+                className="form-control"
+                id="inputDefault"
+                value={this.state.value}
+                onChange={this.onChange}/>
+              <label className="control-label">Search term</label>
             </div>
             <span
-                className="glyphicon glyphicon-option-horizontal"
-                aria-hidden="true"></span>
+                className="glyphicon glyphicon-remove"
+                aria-hidden="true"
+                onClick={this.handleDelete}>
+            </span>
         </div>
     )
   }
+
+  onChange = (event) => {
+    event.preventDefault();
+    this.setState({value: event.target.value});
+  }
+
+  handleDelete = (event) => {
+    event.preventDefault();
+    this.props.handleDelete(this.state);
+  }
+
+
 }
 
 export default class ExplorePage extends React.Component {
 
   componentDidMount() {
     let navBarContent = {
-      leftContent: <li><a href="">Explore</a></li>
+      leftContent: <li><a href="">Explore</a></li>,
+      centerContent: null,
+      rightContent: null,
     }
     store.dispatch(updateNavBarContent(navBarContent));
   }

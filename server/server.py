@@ -5,7 +5,7 @@ from datetime import datetime
 import falcon
 import falcon_cors
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import Search, A
+from elasticsearch_dsl import Search, A, MultiSearch
 
 import nltk
 import gensim
@@ -87,6 +87,34 @@ class GetCommunityActivityTask(object):
         response = s.execute()
         return response.aggregations.activity.buckets
 
+class GetSearchTermResultsTask(object):
+
+    @staticmethod
+    def execute(community_ids, date_range, interval, search_terms):
+        date_filter = {'gte': date_range.start, 'lte': date_range.end}
+        results = []
+        for _id in community_ids:
+            ms = MultiSearch(index='george')
+            for term in search_terms:
+                s = database.Message.search() \
+                    .query('match', text=term) \
+                    .filter('range', date=date_filter) \
+                    .filter('match', community=_id)
+                s.aggs.bucket(
+                    'activity',
+                    'date_histogram',
+                    field='date',
+                    interval=interval)
+                ms.add(s)
+            responses = ms.execute()
+            data = []
+            for response, i in enumerate(responses):
+                data.append({
+                    'term': search_terms[i],
+                    'data': response.aggregations.activity.buckets
+                    })
+            results.append(data)
+        return results
 
 class DateRange(object):
 
@@ -135,7 +163,19 @@ class TrendingTopicService(object):
             request.get_param('community_id'), date_range)
         response.body = json.dumps('community trending topics service')
 
+class ExploreService(object):
+
+    def on_get(self, request, response):
+        date_range = DateRange.from_date_strings(
+            request.get_param('start'),
+            request.get_param('end'))
+        communities = request.get_param('communities')
+        search_terms = request.get_param('search_terms')
+        interaval = request.get_param('interval')
+        pass
+
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())
 api.add_route('/topics', TrendingTopicService())
+api.add_route('/explore', ExploreService())
