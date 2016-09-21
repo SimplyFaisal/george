@@ -1,5 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
+import axios from 'axios';
+import moment from 'moment';
+
+
 
 import {store} from '../store.jsx';
 import {DateRange} from '../utils.jsx';
@@ -17,10 +21,6 @@ class ExploreSearchComponent extends React.Component {
     super(props);
   }
 
-  componentDidMount = () => {
-    console.log(this.state);
-  }
-
   render = () => {
     let ranges = [DateRange.PAST_DAY, DateRange.PAST_4_HOURS, DateRange.PAST_7_DAYS];
     let inputs = this.state.terms.map((x) => {
@@ -29,7 +29,8 @@ class ExploreSearchComponent extends React.Component {
           <ExploreInputComponent
             id={x.id}
             value={x.value}
-            handleDelete={this.handleDelete}/>
+            handleDelete={this.handleDelete}
+            handleChange={this.handleInputChange}/>
         </div>
       );
     });
@@ -84,11 +85,31 @@ class ExploreSearchComponent extends React.Component {
 
   handleSubmit = (event) => {
     event.preventDefault();
-    console.log(this.state);
+    let communities = this.state.communities.map(x => x.displayName).join(',');
+    let searchTerms = this.state.terms.map(x => x.value).join(',');
+    let config = {
+      params: {
+        communities,
+        search_terms: searchTerms,
+        start: this.state.dateRange.getStart().utc().format(),
+        end: moment().utc().format(),
+        interval: this.state.dateRange.interval
+      }
+    };
+    axios.get('http://localhost:8000/explore', config)
+      .then((response) => {
+        console.log(response);
+      });
   }
 
   handleDelete = (term) => {
     let terms = this.state.terms.filter((x) => x.id != term.id);
+    this.setState({terms});
+  }
+
+  handleInputChange = (idx, term) => {
+    let terms = this.state.terms;
+    terms[idx] = term;
     this.setState({terms});
   }
 
@@ -141,6 +162,8 @@ class ExploreInputComponent extends React.Component {
   onChange = (event) => {
     event.preventDefault();
     this.setState({value: event.target.value});
+    this.props.handleChange(
+      this.props.id, {id: this.state.id, value: event.target.value});
   }
 
   handleDelete = (event) => {

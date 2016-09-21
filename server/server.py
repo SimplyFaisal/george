@@ -87,16 +87,16 @@ class GetCommunityActivityTask(object):
         response = s.execute()
         return response.aggregations.activity.buckets
 
-class GetSearchTermResultsTask(object):
+class GetSearchQueryActivityTask(object):
 
     @staticmethod
     def execute(community_ids, date_range, interval, search_terms):
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
         results = []
-        for _id in community_ids:
-            ms = MultiSearch(index='george')
-            for term in search_terms:
-                s = database.Message.search() \
+        for term in search_terms:
+            responses = []
+            for _id in community_ids:
+                s = Search() \
                     .query('match', text=term) \
                     .filter('range', date=date_filter) \
                     .filter('match', community=_id)
@@ -105,16 +105,15 @@ class GetSearchTermResultsTask(object):
                     'date_histogram',
                     field='date',
                     interval=interval)
-                ms.add(s)
-            responses = ms.execute()
-            data = []
-            for response, i in enumerate(responses):
-                data.append({
-                    'term': search_terms[i],
-                    'data': response.aggregations.activity.buckets
+                response = s.execute()
+                responses.append({
+                    'community': _id,
+                    'activity': map(lambda r: r.to_dict(),
+                        response.aggregations.activity.buckets)
                     })
-            results.append(data)
+            results.append({'term': term, 'data': responses})
         return results
+
 
 class DateRange(object):
 
@@ -169,10 +168,14 @@ class ExploreService(object):
         date_range = DateRange.from_date_strings(
             request.get_param('start'),
             request.get_param('end'))
-        communities = request.get_param('communities')
-        search_terms = request.get_param('search_terms')
-        interaval = request.get_param('interval')
-        pass
+        communities = request.get_param_as_list('communities')
+        search_terms = request.get_param_as_list('search_terms')
+        interval = request.get_param('interval')
+
+        explore_response = GetSearchQueryActivityTask.execute(
+            communities, date_range, interval, search_terms)
+        response.body = json.dumps(explore_response, default=json_util.default)
+        return
 
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
