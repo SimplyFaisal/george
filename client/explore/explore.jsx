@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
 import moment from 'moment';
+import Plottable from 'plottable';
 
 
 
@@ -13,12 +14,10 @@ import {updateNavBarContent, getCommunities} from '../actions.jsx';
 
 class ExploreSearchComponent extends React.Component {
   state = {
+    hasError: false,
     terms: [],
     communities: [],
     dateRange: null
-  }
-  constructor(props) {
-    super(props);
   }
 
   render = () => {
@@ -35,43 +34,55 @@ class ExploreSearchComponent extends React.Component {
       );
     });
     return (
-      <div className="panel panel-primary">
-        <div className="panel-body">
-          <div className="col-md-12">
-            <div className="row">
-                <div className="col-md-2">
-                    <button type="button" className="btn btn-primary btn-xs">
-                        <span
-                            className="glyphicon glyphicon-plus"
-                            aria-hidden="true"
-                            onClick={this.addInputComponent}>
-                        </span>
-                    </button>
+      <div>
+        {(() => {
+            if (this.state.hasError) {
+              return (<div className="alert alert-danger">
+                <button type="button" className="close">&times;</button>
+                Please enter a at least 1 search term and community, and a date range.
                 </div>
+              )
+            }
+          }
+        )()}
+          <div className="panel panel-primary">
+            <div className="panel-body">
+              <div className="col-md-12">
+                <div className="row">
+                    <div className="col-md-2">
+                        <button type="button" className="btn btn-primary btn-xs">
+                            <span
+                                className="glyphicon glyphicon-plus"
+                                aria-hidden="true"
+                                onClick={this.addInputComponent}>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+                <div className="row">
+                    {inputs}
+                </div>
+              </div>
             </div>
-            <div className="row">
-                {inputs}
+            <div className="panel-footer">
+                <div className="col-md-8">
+                  <CommunityMultiSelectDropDown
+                    onChange={this.handleCommunitiesChange}
+                  />
+                </div>
+
+                <div className="col-md-2">
+                  <DateRangeDropdown
+                    dateRangeList={ranges}
+                    onChange={this.handleDateRangeChange}
+                  />
+                </div>
+                <a className="btn btn-default" onClick={this.handleSubmit}>
+                  Search
+                </a>
             </div>
           </div>
         </div>
-        <div className="panel-footer">
-            <div className="col-md-8">
-              <CommunityMultiSelectDropDown
-                onChange={this.handleCommunitiesChange}
-              />
-            </div>
-
-            <div className="col-md-2">
-              <DateRangeDropdown
-                dateRangeList={ranges}
-                onChange={this.handleDateRangeChange}
-              />
-            </div>
-            <a className="btn btn-default" onClick={this.handleSubmit}>
-              Search
-            </a>
-        </div>
-      </div>
       )
   }
 
@@ -85,6 +96,13 @@ class ExploreSearchComponent extends React.Component {
 
   handleSubmit = (event) => {
     event.preventDefault();
+    let hasError = this.state.dateRange == null
+        || this.state.terms.length == 0
+        || this.state.communities.length == 0;
+    this.setState({hasError});
+    if (hasError) {
+      return;
+    }
     let communities = this.state.communities.map(x => x.displayName).join(',');
     let searchTerms = this.state.terms.map(x => x.value).join(',');
     let config = {
@@ -98,7 +116,7 @@ class ExploreSearchComponent extends React.Component {
     };
     axios.get('http://localhost:8000/explore', config)
       .then((response) => {
-        console.log(response);
+        this.props.onSubmit(response.data);
       });
   }
 
@@ -128,10 +146,6 @@ class ExploreInputComponent extends React.Component {
   state = {
     id: null,
     value: ''
-  }
-
-  constructor(props) {
-    super(props);
   }
 
   componentDidMount = () => {
@@ -174,9 +188,96 @@ class ExploreInputComponent extends React.Component {
 
 }
 
+class ExploreChartComponent extends React.Component {
+
+  constructor(props) {
+    super(props);
+    this.xScale = new Plottable.Scales.Time();
+    this.yScale = new Plottable.Scales.Linear();
+    this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
+    this.xAxis = new Plottable.Axes.Time(this.xScale, "bottom");
+
+    this.sparkline = new Plottable.Plots.Line()
+        .x(d => d.date, this.xScale)
+        .y(d => d.doc_count, this.yScale);
+
+    this.scatter = new Plottable.Plots.Scatter();
+    this.scatter.x(d => d.date, this.xScale)
+        .y(d => d.doc_count, this.yScale)
+        .attr("fill", "#001742");
+  }
+
+  componentDidMount = () => {
+    this.setState({
+        data: this.props.data,
+    });
+  }
+
+  componentWillReceiveProps = (nextProps) => {
+    this.setState({
+        data: this.props.data,
+    });
+  }
+
+  componentDidUpdate = (prevProps, nextState) => {
+    let datasets = this.state.data.data.map((x) => {
+      let points = x.activity.map(p => {
+        p.date = new Date(p.key);
+        return p;
+      });
+      return new Plottable.Dataset(points);
+    });
+    let _id = '#' + this.getId();
+
+    // this.xScale.domain(d3.extent(data, d => d.date));
+    // this.yScale.domain([options.yMin, options.yMax]);
+    datasets.forEach((x) => {
+      this.sparkline.addDataset(x);
+      this.scatter.addDataset(x);
+    });;
+    // this.sparkline.datasets(datasets);
+    // this.scatter.datasets(datasets);
+
+    let yLabel = new Plottable.Components.AxisLabel("# messages")
+      .xAlignment("left")
+      .yAlignment('top')
+      .angle(90);
+
+    let group = new Plottable.Components.Group([this.sparkline, this.scatter])
+    let chart = new Plottable.Components.Table([
+      [yLabel, this.yAxis, group],
+      [null, null, this.xAxis]
+    ]);
+    chart.renderTo(_id);
+  }
+
+  render = () => {
+    return (
+      <div className="panel panel-primary">
+        <div className="panel-heading">
+          <h3 className="panel-title">Interest in {this.props.data.term} over time</h3>
+        </div>
+        <div className="panel-body">
+          <div className="col-md-2">left Coluumn</div>
+          <div className="col-md-10">
+            <svg id={this.getId()} height="250"> </svg>
+          </div>
+        </div>
+    </div>
+    )
+  }
+
+  getId = () => {
+    return this.props.data.term;
+  }
+}
+
 export default class ExplorePage extends React.Component {
 
-  componentDidMount() {
+  state = {
+    searchResults: []
+  }
+  componentDidMount = () => {
     let navBarContent = {
       leftContent: <li><a href="">Explore</a></li>,
       centerContent: null,
@@ -185,10 +286,18 @@ export default class ExplorePage extends React.Component {
     store.dispatch(updateNavBarContent(navBarContent));
   }
 
-  render() {
+  handleSubmit = (data) => {
+    this.setState({searchResults: data});
+  }
+
+  render = () => {
+    let panels = this.state.searchResults.map(x => {
+      return <ExploreChartComponent key={x.term} data={x}/>
+    });
     return (
       <div>
-        <ExploreSearchComponent/>
+        <ExploreSearchComponent onSubmit={this.handleSubmit}/>
+        {panels}
       </div>
     )
   }
