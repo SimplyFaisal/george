@@ -36,4 +36,41 @@ DateRange.initEnum({
     getStart: () => {}
   }
 });
-export {DateRange};
+
+class ChartType extends Enum{};
+
+ChartType.initEnum({
+  ACTIVITY: {
+    displayName: 'Activity'
+  },
+  SENTIMENT: {
+    displayName: 'Sentiment'
+  },
+  VOTES: {
+    displayName: 'Votes'
+  }
+})
+
+class Tooltip {
+
+  constructor(root) {
+    this.anchor = root.append('g');
+    this.contents = this.anchor.append('text')
+  }
+
+  setContents = (text) => {
+    this.contents.text(text);
+  }
+  show = () => {
+    this.anchor.attr({opacity: 1});
+  }
+
+  hide = () => {
+    this.anchor.attr({opacity: 0});
+  }
+
+  setPosition = (x, y) => {
+    this.anchor.attr('transform', 'translate(' + x + ',' + (y - 10) + ')');
+  }
+}
+export {DateRange, Tooltip, ChartType};

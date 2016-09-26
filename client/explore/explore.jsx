@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import axios from 'axios';
 import moment from 'moment';
 import Plottable from 'plottable';
+import * as d3 from "d3";
 
 
 
@@ -215,11 +216,11 @@ class ExploreChartComponent extends React.Component {
 
   componentWillReceiveProps = (nextProps) => {
     this.setState({
-        data: this.props.data,
+        data: nextProps.data,
     });
   }
 
-  componentDidUpdate = (prevProps, nextState) => {
+  componentDidUpdate = (prevProps, prevState) => {
     let datasets = this.state.data.data.map((x) => {
       let points = x.activity.map(p => {
         p.date = new Date(p.key);
@@ -231,12 +232,8 @@ class ExploreChartComponent extends React.Component {
 
     // this.xScale.domain(d3.extent(data, d => d.date));
     // this.yScale.domain([options.yMin, options.yMax]);
-    datasets.forEach((x) => {
-      this.sparkline.addDataset(x);
-      this.scatter.addDataset(x);
-    });;
-    // this.sparkline.datasets(datasets);
-    // this.scatter.datasets(datasets);
+    this.sparkline.datasets(datasets);
+    this.scatter.datasets(datasets);
 
     let yLabel = new Plottable.Components.AxisLabel("# messages")
       .xAlignment("left")

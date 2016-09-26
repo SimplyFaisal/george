@@ -60,6 +60,32 @@ def _nmf(texts):
         print()
     print 'finishing nmf -------------'
 
+class KeyWordExtractor(object):
+
+
+    @staticmethod
+    def get_keywords(documents, text_accessor=lambda x: x, threshold=0.2, ngram_range=(1, 2)):
+        """
+        Args:
+            documents list(<T>):
+        Returns:
+            a set of keywords
+        """
+        tfidf_vectorizer = TfidfVectorizer(stop_words='english', ngram_range=ngram_range)
+        corpus = [text_accessor(doc) for doc in documents]
+        matrix = tfidf_vectorizer.fit_transform(corpus)
+        features = tfidf_vectorizer.get_feature_names()
+        document_terms = []
+        for vector in matrix:
+            terms = [(features[feature_index], weight)
+                    for feature_index, weight in zip(vector.indices, vector.data)
+                        if weight > threshold]
+            _d = {term: weight for term, weight in terms}
+            print _d
+            document_terms.append(_d)
+        return document_terms
+
+
 class GetTrendingTopicsTask(object):
 
     @staticmethod
@@ -69,10 +95,12 @@ class GetTrendingTopicsTask(object):
             .filter('range', date=date_filter) \
             .filter('match', community=community_id) \
             .execute()
-        texts = [nltk.word_tokenize(message.text) for message in response]
-        lsi(texts)
-        # _nmf([m.text for m in response])
-        return
+        messages = [message for message in response]
+        print len(messages)
+        keywords = KeyWordExtractor.get_keywords(
+            messages, text_accessor=lambda x: x.text)
+        print keywords
+        return keywords
 
 
 class GetCommunityActivityTask(object):
@@ -82,8 +110,12 @@ class GetCommunityActivityTask(object):
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
         s = Search().filter('range', date=date_filter)\
             .filter('match', community=community_id)
-        s.aggs.bucket(
-            'activity', 'date_histogram', field='date', interval=interval)
+        s.aggs \
+            .bucket(
+                'activity',
+                'date_histogram',
+                field='date',
+                interval=interval)
         response = s.execute()
         return response.aggregations.activity.buckets
 
@@ -160,7 +192,7 @@ class TrendingTopicService(object):
         )
         trending_topics_response = GetTrendingTopicsTask.execute(
             request.get_param('community_id'), date_range)
-        response.body = json.dumps('community trending topics service')
+        response.body = json.dumps(trending_topics_response)
 
 class ExploreService(object):
 

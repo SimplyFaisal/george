@@ -4,13 +4,14 @@ import moment from 'moment';
 import axios from 'axios';
 import Select from 'react-select';
 import * as d3 from "d3";
+import * as d3Tip from 'd3-tip';
 import Plottable from 'plottable';
 import { StickyContainer, Sticky } from 'react-sticky';
 
 import {store} from '../store.jsx';
 import CommunityMultiSelectDropDown from '../components/CommunityMultiSelectDropDown.jsx';
 import DateRangeDropdown from '../components/DateRangeDropdown.jsx';
-import {DateRange} from '../utils.jsx';
+import {DateRange, Tooltip, ChartType} from '../utils.jsx';
 
 class DashboardFilterComponent extends React.Component {
   state = {
@@ -63,7 +64,13 @@ class DashboardFilterComponent extends React.Component {
 
 class CommunitySnapshotComponent extends React.Component {
 
-  state = {activityData: [], trendingData: []}
+  state = {
+      activityData: [],
+      trendingData: [],
+      chartType: ChartType.ACTIVITY,
+      enableDragbox: false
+
+    }
   constructor(props) {
     super(props);
     this.xScale = new Plottable.Scales.Time();
@@ -75,17 +82,13 @@ class CommunitySnapshotComponent extends React.Component {
         .x(d => d.date, this.xScale)
         .y(d => d.doc_count, this.yScale);
 
-
-    this.scatter = new Plottable.Plots.Scatter();
-    this.scatter.x(d => d.date, this.xScale)
-                .y(d => d.doc_count, this.yScale)
-                .attr("fill", "#001742");
+    let self = this;
 
     this.dragbox = new Plottable.Components.XDragBoxLayer();
-    let self = this;
-    this.dragbox.onDragEnd((bounds) => {
-      let start = moment(self.xScale.invert(bounds.topLeft.x));
-      let end = moment(self.xScale.invert(bounds.bottomRight.x));
+    this.dragbox.enabled(false);
+    let onDragEnd = (bounds) => {
+      let start = moment(this.xScale.invert(bounds.topLeft.x));
+      let end = moment(this.xScale.invert(bounds.bottomRight.x));
       let config = {
         params: {
           community_id: self.props.community.displayName,
@@ -94,27 +97,26 @@ class CommunitySnapshotComponent extends React.Component {
         }
       };
       axios.get('http://localhost:8000/topics', config)
-        .then((response) => {
-          console.log(response);
-        });
-    });
+      .then((response) => {
+        console.log(response);
+      });
+    };
+    this.dragbox.onDragEnd(onDragEnd.bind(this));
   }
 
   componentDidMount = () => {
     this.setState({
-        activityData: this.props.activityData,
-        trendingData: this.props.trendingData
+        activityData: this.props.activityData
     });
   }
 
   componentWillReceiveProps = (nextProps) => {
     this.setState({
         activityData: nextProps.activityData,
-        trendingData: nextProps.trendingData
     });
   }
 
-  componentDidUpdate = (prevProps, nextState) => {
+  componentDidUpdate = (prevProps, prevState) => {
     let data = this.state.activityData.data.map((d) => {
       d.date = new Date(d.key);
       return d;
@@ -126,35 +128,69 @@ class CommunitySnapshotComponent extends React.Component {
     this.yScale.domain([options.yMin, options.yMax]);
 
     this.sparkline.datasets([new Plottable.Dataset(data)]);
-    this.scatter.datasets([new Plottable.Dataset(data)]);
 
     let yLabel = new Plottable.Components.AxisLabel("# messages")
       .xAlignment("left")
       .yAlignment('top')
       .angle(90);
 
-    let group = new Plottable.Components.Group([this.dragbox, this.sparkline, this.scatter])
+    let group = new Plottable.Components.Group([this.dragbox, this.sparkline])
     let chart = new Plottable.Components.Table([
       [yLabel, this.yAxis, group],
       [null, null, this.xAxis]
     ]);
-
     chart.renderTo(_id);
   }
 
   render = () => {
+    let options = ChartType.enumValues.map((x) => {
+      return {
+        value: x.displayName,
+        label: x.displayName,
+        chartType: x
+      };
+    })
     return (
-      <div className="col-md-6">
+      <div className="col-md-12">
           <div className="panel panel-primary">
               <div className="panel-heading">
                 <h3 className="panel-title">{this.props.community.displayName}</h3>
               </div>
               <div className="panel-body">
-                  <svg id={this.getId()} height="250"> </svg>
+                  <div className="well well-sm">
+                      <div className="checkbox inline">
+                        <label>
+                          <input type="checkbox" onClick={this.onTrendingTopicsCheckboxClick}/>
+                          Display Trending Topics
+                        </label>
+                      </div>
+                      <div className="col-md-2">
+                          <Select
+                              mult={false}
+                              name="chart-type-multi-select"
+                              value={this.state.chartType.displayName}
+                              options={options}
+                              onChange={this.onChartTypeChange}
+                          />
+                      </div>
+                  </div>
+                  <div>
+                      <svg id={this.getId()} height="150"> </svg>
+                  </div>
               </div>
         </div>
       </div>
     )
+  }
+
+  onTrendingTopicsCheckboxClick = (event) => {
+    this.setState({enableDragbox: event.target.checked});
+    this.dragbox.enabled(event.target.checked);
+  }
+
+  onChartTypeChange = (item) => {
+    this.setState({chartType: item.chartType})
+    console.log(this.state);
   }
 
   getId = () => {
