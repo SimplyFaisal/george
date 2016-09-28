@@ -4,9 +4,12 @@ import random
 import string
 import threading
 
+from vaderSentiment.vaderSentiment import sentiment as vader
+
 import database
 from datetime import datetime, timedelta
 from Queue import Queue
+
 
 logging.basicConfig(level=logging.DEBUG,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -210,17 +213,27 @@ class ElasticSearchClient(object):
     def save(self, posts, subreddit_info, get_comments):
         total = 0
         for post in posts:
+            post_sentiment = vader(post.selftext.encode('utf8'))
             message = database.Message(
                 text=post.selftext,
                 date=datetime.utcfromtimestamp(post.created_utc),
-                community=subreddit_info['name'])
+                community=subreddit_info['name'],
+                positive=post_sentiment['pos'],
+                negative=post_sentiment['neg'],
+                neutral=post_sentiment['neu'],
+                score=post.score)
             comments = get_comments(post)
             for comment in comments:
+                _sentiment = vader(comment.body.encode('utf8'))
                 comment_message = database.Message(
                     text=comment.body,
                     date=datetime.utcfromtimestamp(comment.created_utc),
-                    community=subreddit_info['name'])
-                print comment
+                    community=subreddit_info['name'],
+                    positive=_sentiment['pos'],
+                    negative=_sentiment['neg'],
+                    neutral=_sentiment['neu'],
+                    score=comment.score)
+                # print comment
                 comment_message.save()
                 total += 1
             message.save()
@@ -246,13 +259,14 @@ def insert_communities():
         print subreddit
         message = database.Community(
             identifier=subreddit['subreddit'],
-            displayName=subreddit['name'])
+            displayName=subreddit['name'],)
         message.save()
 
 
 def crawl_reddit():
     crawler = RedditCrawler(SUBREDDITS)
     crawler.start()
-    
+
 if __name__ == '__main__':
     crawl_reddit()
+    insert_communities()

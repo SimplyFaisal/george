@@ -67,7 +67,7 @@ class CommunitySnapshotComponent extends React.Component {
   state = {
       activityData: [],
       trendingData: [],
-      chartType: ChartType.ACTIVITY,
+      chartType: ChartType.VOTES,
       enableDragbox: false
 
     }
@@ -75,17 +75,16 @@ class CommunitySnapshotComponent extends React.Component {
     super(props);
     this.xScale = new Plottable.Scales.Time();
     this.yScale = new Plottable.Scales.Linear();
+    this.colorScale = new Plottable.Scales.InterpolatedColor();
+    this.colorScale.range(["#BDCEF0", "#5279C7", '#6d8000']);
     this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
     this.xAxis = new Plottable.Axes.Time(this.xScale, "bottom");
 
-    this.sparkline = new Plottable.Plots.Line()
-        .x(d => d.date, this.xScale)
-        .y(d => d.doc_count, this.yScale);
-
-    let self = this;
+    this.sparklines = new Plottable.Plots.Line()
+    this.stacked = new Plottable.Plots.StackedArea();
 
     this.dragbox = new Plottable.Components.XDragBoxLayer();
-    this.dragbox.enabled(false);
+    this.dragbox.enabled(this.state.enableDragbox);
     let onDragEnd = (bounds) => {
       let start = moment(this.xScale.invert(bounds.topLeft.x));
       let end = moment(this.xScale.invert(bounds.bottomRight.x));
@@ -117,29 +116,52 @@ class CommunitySnapshotComponent extends React.Component {
   }
 
   componentDidUpdate = (prevProps, prevState) => {
-    let data = this.state.activityData.data.map((d) => {
-      d.date = new Date(d.key);
-      return d;
-    });
-    let options = this.state.activityData.options;
     let _id = '#' + this.getId();
+    let data = this.state.activityData.data;
+    // this.xScale.domain(d3.extent(data, d => d.date));
+    this.sparklines.x(d => d.date, this.xScale);
+    var chart;
+    var yLabel;
+    switch (this.state.chartType) {
+      case ChartType.ACTIVITY:
+          let options = this.state.activityData.options;
+          this.yScale.domain([options.yMin, options.yMax]);
+          this.sparklines.y(d => d.doc_count, this.yScale);
+          this.sparklines.datasets([new Plottable.Dataset(data)]);
+          yLabel = new Plottable.Components.AxisLabel("# messages")
+            .xAlignment("left")
+            .yAlignment('top')
+            .angle(90);
+          chart = this.sparklines;
+        break;
+      case ChartType.VOTES:
+        this.sparklines.y(d => d.score.value, this.yScale);
+        this.sparklines.datasets([new Plottable.Dataset(data)]);
+        yLabel = new Plottable.Components.AxisLabel("average score")
+          .xAlignment("left")
+          .yAlignment('top')
+          .angle(90);
+        chart = this.sparklines;
+        break;
+      case ChartType.SENTIMENT:
+        break;
+      default:
+        break;
+    }
 
-    this.xScale.domain(d3.extent(data, d => d.date));
-    this.yScale.domain([options.yMin, options.yMax]);
+    // this.xScale.domain(d3.extent(data, d => d.date));
+    // this.yScale.domain([options.yMin, options.yMax]);
 
-    this.sparkline.datasets([new Plottable.Dataset(data)]);
+    // this.sparkline.datasets([new Plottable.Dataset(data)]);
 
-    let yLabel = new Plottable.Components.AxisLabel("# messages")
-      .xAlignment("left")
-      .yAlignment('top')
-      .angle(90);
 
-    let group = new Plottable.Components.Group([this.dragbox, this.sparkline])
-    let chart = new Plottable.Components.Table([
+
+    let group = new Plottable.Components.Group([this.dragbox, chart])
+    let table = new Plottable.Components.Table([
       [yLabel, this.yAxis, group],
       [null, null, this.xAxis]
     ]);
-    chart.renderTo(_id);
+    table.renderTo(_id);
   }
 
   render = () => {
@@ -175,7 +197,7 @@ class CommunitySnapshotComponent extends React.Component {
                       </div>
                   </div>
                   <div>
-                      <svg id={this.getId()} height="150"> </svg>
+                      <svg id={this.getId()} height="200"> </svg>
                   </div>
               </div>
         </div>
@@ -236,36 +258,12 @@ export default class DashboardPage extends React.Component {
   }
 
   handleDashboardFilterSubmit = (filters) => {
-    let end = moment();
-    let start;
-    let interval;
-    switch(filters.dateRange) {
-      case DateRange.PAST_DAY:
-        start = moment().subtract(1, 'days');
-        break;
-      case DateRange.PAST_4_HOURS:
-        start = moment().subtract(4, 'hours');
-        break;
-      case DateRange.PAST_7_DAYS:
-        start = moment().subtract(7, 'days');
-        break;
-      case DateRange.PAST_30_DAYS:
-        start = moment().subtract(30, 'days');
-        break;
-      case DateRange.PAST_90_DAYS:
-        start = moment().subtract(90, 'days');
-        break;
-      case DateRange.CUSTOM_TIME_RANGE:
-        break;
-      default:
-        break;
-    }
     let requests = filters.communities.map((community) => {
       let config = {
         params: {
           community_id: community.displayName,
-          start: start.utc().format(),
-          end: end.utc().format(),
+          start: filters.dateRange.getStart().utc().format(),
+          end: moment().utc().format(),
           interval: filters.dateRange.interval
         }
       };
@@ -285,7 +283,10 @@ export default class DashboardPage extends React.Component {
           return {
             community: filters.communities[i],
             activityData: {
-              data: response.data.activity,
+              data: response.data.activity.map((x) => {
+                x.date = new Date(x.key);
+                return x;
+              }),
               options: {yMin, yMax}
             },
             trendingData: {

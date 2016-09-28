@@ -115,7 +115,13 @@ class GetCommunityActivityTask(object):
                 'activity',
                 'date_histogram',
                 field='date',
-                interval=interval)
+                min_doc_count=0,
+                interval=interval) \
+            .metric('score', 'avg', field='score') \
+            .metric('positive', 'avg', field='positive') \
+            .metric('negative', 'avg', field='negative') \
+            .metric('neutral', 'avg', field='neutral')
+
         response = s.execute()
         return response.aggregations.activity.buckets
 

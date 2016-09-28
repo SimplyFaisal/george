@@ -1,4 +1,4 @@
-from elasticsearch_dsl import Index, DocType, String, Date, Integer
+from elasticsearch_dsl import Index, DocType, String, Date, Integer, Float
 from elasticsearch_dsl.connections import connections
 
 # Define a default Elasticsearch client
@@ -26,10 +26,10 @@ class Message(DocType):
         fields={'raw': String(index='not_analyzed')})
     community = String()
     date = Date()
-    votes = Integer()
-    positive = String()
-    negative = String()
-    neutral = String()
+    score = Integer()
+    positive = Float()
+    negative = Float()
+    neutral = Float()
 
     class Meta:
         index = 'george'
