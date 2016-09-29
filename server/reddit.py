@@ -269,4 +269,4 @@ def crawl_reddit():
 
 if __name__ == '__main__':
     crawl_reddit()
-    insert_communities()
+    # insert_communities()

@@ -60,6 +60,7 @@ def _nmf(texts):
         print()
     print 'finishing nmf -------------'
 
+
 class KeyWordExtractor(object):
 
 

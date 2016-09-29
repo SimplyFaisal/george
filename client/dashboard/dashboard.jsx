@@ -67,7 +67,7 @@ class CommunitySnapshotComponent extends React.Component {
   state = {
       activityData: [],
       trendingData: [],
-      chartType: ChartType.VOTES,
+      chartType: ChartType.SENTIMENT,
       enableDragbox: false
 
     }
@@ -76,12 +76,14 @@ class CommunitySnapshotComponent extends React.Component {
     this.xScale = new Plottable.Scales.Time();
     this.yScale = new Plottable.Scales.Linear();
     this.colorScale = new Plottable.Scales.InterpolatedColor();
-    this.colorScale.range(["#BDCEF0", "#5279C7", '#6d8000']);
+    this.colorScale.range(["#2ecc71", "#f1c40f", '#e74c3c']);
     this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
     this.xAxis = new Plottable.Axes.Time(this.xScale, "bottom");
-
-    this.sparklines = new Plottable.Plots.Line()
+    this.lineDataset = new Plottable.Dataset();
+    this.sparklines = new Plottable.Plots.Line();
     this.stacked = new Plottable.Plots.StackedArea();
+
+    this.sparklines.addDataset(this.lineDataset);
 
     this.dragbox = new Plottable.Components.XDragBoxLayer();
     this.dragbox.enabled(this.state.enableDragbox);
@@ -90,7 +92,7 @@ class CommunitySnapshotComponent extends React.Component {
       let end = moment(this.xScale.invert(bounds.bottomRight.x));
       let config = {
         params: {
-          community_id: self.props.community.displayName,
+          community_id: this.props.community.displayName,
           start: start.utc().format(),
           end: end.utc().format(),
         }
@@ -127,7 +129,9 @@ class CommunitySnapshotComponent extends React.Component {
           let options = this.state.activityData.options;
           this.yScale.domain([options.yMin, options.yMax]);
           this.sparklines.y(d => d.doc_count, this.yScale);
-          this.sparklines.datasets([new Plottable.Dataset(data)]);
+          this.yAxis.redraw();
+          this.lineDataset.data(data);
+          // this.sparklines.datasets([new Plottable.Dataset(data)]);
           yLabel = new Plottable.Components.AxisLabel("# messages")
             .xAlignment("left")
             .yAlignment('top')
@@ -135,8 +139,11 @@ class CommunitySnapshotComponent extends React.Component {
           chart = this.sparklines;
         break;
       case ChartType.VOTES:
+        this.yScale = new Plottable.Scales.Linear();
         this.sparklines.y(d => d.score.value, this.yScale);
-        this.sparklines.datasets([new Plottable.Dataset(data)]);
+        this.lineDataset.data(data);
+        this.yAxis.redraw();
+        // this.sparklines.datasets([new Plottable.Dataset(data)]);
         yLabel = new Plottable.Components.AxisLabel("average score")
           .xAlignment("left")
           .yAlignment('top')
@@ -144,6 +151,21 @@ class CommunitySnapshotComponent extends React.Component {
         chart = this.sparklines;
         break;
       case ChartType.SENTIMENT:
+        let positive = new Plottable.Dataset(
+            data.map((d) => { return {y: d.positive.value, x: d.date} }))
+                .metadata(1);
+        let neutral = new Plottable.Dataset(
+            data.map((d) => { return {y: d.neutral.value, x: d.date} }))
+                .metadata(2);
+        let negative = new Plottable.Dataset(
+            data.map((d) => { return { y: d.negative.value, x: d.date} }))
+                .metadata(3);
+        this.stacked
+            .x(d => d.x, this.xScale)
+            .y(d => d.y, this.yScale)
+            .attr('fill', (d, i, dataset) =>  dataset.metadata(), this.colorScale);
+        this.stacked.datasets([positive, neutral, negative]);
+        chart = this.stacked;
         break;
       default:
         break;
