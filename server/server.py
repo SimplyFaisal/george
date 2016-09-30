@@ -5,15 +5,10 @@ from datetime import datetime
 import falcon
 import falcon_cors
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import Search, A, MultiSearch
-
-import nltk
-import gensim
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import NMF
-
+from elasticsearch_dsl import Search
 
 import database
+import analysis
 
 import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -28,63 +23,6 @@ class GetCommunitiesTask(object):
     def execute():
         return database.Community.search().execute()
 
-def lsi(texts):
-    print 'starting lsi ------------'
-    dictionary = gensim.corpora.Dictionary(texts)
-    corpus = [dictionary.doc2bow(text) for text in texts]
-    tfidf = gensim.models.TfidfModel(corpus)
-    corpus_tfidf = tfidf[corpus]
-    lsi = gensim.models.LsiModel(
-        corpus_tfidf, id2word=dictionary, num_topics=2)
-    lsi.print_topics(2)
-    print 'finishing lsi ------------'
-
-def _nmf(texts):
-    print 'starting nmf -------------'
-    n_features = 1000
-    n_top_words = 20
-    n_topics = 10
-    vectorizer = TfidfVectorizer(
-        max_df=0.95,
-        min_df=2,
-        max_features=n_features,
-        stop_words='english')
-    tfidf = vectorizer.fit_transform(texts)
-    nmf = NMF(n_components=n_topics, random_state=1).fit(tfidf)
-    feature_names = vectorizer.get_feature_names()
-
-    for topic_idx, topic in enumerate(nmf.components_):
-        print("Topic #%d:" % topic_idx)
-        print(" ".join([feature_names[i]
-                        for i in topic.argsort()[:-n_top_words - 1:-1]]))
-        print()
-    print 'finishing nmf -------------'
-
-
-class KeyWordExtractor(object):
-
-
-    @staticmethod
-    def get_keywords(documents, text_accessor=lambda x: x, threshold=0.2, ngram_range=(1, 2)):
-        """
-        Args:
-            documents list(<T>):
-        Returns:
-            a set of keywords
-        """
-        tfidf_vectorizer = TfidfVectorizer(stop_words='english', ngram_range=ngram_range)
-        corpus = [text_accessor(doc) for doc in documents]
-        matrix = tfidf_vectorizer.fit_transform(corpus)
-        features = tfidf_vectorizer.get_feature_names()
-        document_terms = []
-        for vector in matrix:
-            terms = [(features[feature_index], weight)
-                    for feature_index, weight in zip(vector.indices, vector.data)
-                        if weight > threshold]
-            _d = {term: weight for term, weight in terms}
-            print _d
-            document_terms.append(_d)
-        return document_terms
 
 
 class GetTrendingTopicsTask(object):
@@ -96,12 +34,9 @@ class GetTrendingTopicsTask(object):
             .filter('range', date=date_filter) \
             .filter('match', community=community_id) \
             .execute()
-        messages = [message for message in response]
-        print len(messages)
-        keywords = KeyWordExtractor.get_keywords(
-            messages, text_accessor=lambda x: x.text)
-        print keywords
-        return keywords
+        messages = [message.text for message in response]
+        g = analysis.TextacyKeywordExtractor.get_keyword_graph(messages)
+        return g
 
 
 class GetCommunityActivityTask(object):
