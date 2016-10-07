@@ -67,7 +67,7 @@ class CommunitySnapshotComponent extends React.Component {
   state = {
       activityData: [],
       trendingData: [],
-      chartType: ChartType.SENTIMENT,
+      chartType: ChartType.ACTIVITY,
       enableDragbox: false
 
     }
@@ -97,9 +97,8 @@ class CommunitySnapshotComponent extends React.Component {
           end: end.utc().format(),
         }
       };
-      axios.get('http://localhost:8000/topics', config)
-      .then((response) => {
-        console.log(response);
+      this.getTrendingTopics(config).then((response) => {
+        this.setState({trendingData: response.data});
       });
     };
     this.dragbox.onDragEnd(onDragEnd.bind(this));
@@ -221,6 +220,9 @@ class CommunitySnapshotComponent extends React.Component {
                   <div>
                       <svg id={this.getId()} height="200"> </svg>
                   </div>
+                  <div>
+                      <KeywordPanel data={this.state.trendingData} id={this.getId()}/>
+                  </div>
               </div>
         </div>
       </div>
@@ -243,6 +245,95 @@ class CommunitySnapshotComponent extends React.Component {
 
   getTrendingTopics(config) {
     return axios.get('http://localhost:8000/topics', config);
+  }
+}
+
+class KeywordPanel extends React.Component {
+  render = () => {
+    return (
+        <div className="well well-sm">
+            <svg
+              id={'arc-diagram-' + this.props.id}
+              height="200"
+              width="600">
+            </svg>
+        </div>
+    )
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    let graph = this.props.data;
+    var width  = 600;           // width of svg image
+    var height = 200;           // height of svg image
+    var margin = 20;            // amount of margin around plot area
+    var pad = margin / 2;       // actual padding amount
+    var radius = 4;             // fixed node radius
+    var yfixed = pad;
+    if (graph.length == 0) {
+      return;
+    }
+    graph.links.forEach((d) => {
+        d.source = graph.nodes[d.source];
+        d.target = graph.nodes[d.target];
+    });
+    let svg = d3.select('#arc-diagram-' + this.props.id)
+        .attr('fill', 'red');
+
+    // create plot area within svg image
+    let plot = svg.append("g")
+        .attr("id", "plot")
+        .attr("transform", "translate(" + pad + ", " + pad + ")");
+
+    // sort nodes by group
+    graph.nodes.sort(function(a, b) {
+        return b.weight - a.weight;
+    });
+
+    // used to scale node index to x position
+    var xscale = d3.scaleLinear()
+        .domain([0, graph.nodes.length - 1])
+        .range([radius, width - margin - radius]);
+
+    var radiusScale = d3.scaleLinear()
+        .domain(d3.extent(graph.nodes, d => d.weight))
+        .range([5, 20]);
+    // calculate pixel location for each node
+    graph.nodes.forEach(function(d, i) {
+        d.x = xscale(i);
+        d.y = yfixed;
+    });
+    plot.selectAll(".link")
+        .data(graph.links)
+        .enter()
+        .append("path")
+        .attr("class", "link")
+        .attr('stroke', 'black')
+        .attr('fill', 'red')
+        .attr("d", function(d, i) {
+            var context = d3.path();
+            let radius = Math.abs(d.source.x - d.target.x) / 2;
+            let midpointX = (d.source.x + d.target.x) / 2;
+            // context.moveTo(d.source.x, d.source.y);
+            // context.lineTo(d.target.x, d.target.y);
+            context.arc(midpointX, yfixed, radius, 0, Math.PI);
+            return context.toString();
+        });
+
+    plot.selectAll("circle")
+        .data(graph.nodes)
+        .enter()
+        .append("circle")
+        .attr("class", "node")
+        // .attr("id", function(d, i) { return d.name; })
+        .attr("cx", function(d, i) {
+          return d.x;
+        })
+        .attr("cy", function(d, i) {
+          return d.y;
+        })
+        .attr("r",  function(d, i) {
+          return radiusScale(d.weight);
+        })
   }
 }
 

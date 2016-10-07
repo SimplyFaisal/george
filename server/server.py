@@ -9,6 +9,7 @@ from elasticsearch_dsl import Search
 
 import database
 import analysis
+from utils import DateRange
 
 import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -35,7 +36,7 @@ class GetTrendingTopicsTask(object):
             .filter('match', community=community_id) \
             .execute()
         messages = [message.text for message in response]
-        g = analysis.TextacyKeywordExtractor.get_keyword_graph(messages)
+        g = analysis.TextacyKeywordExtractor().get_keyword_graph(messages)
         return g
 
 
@@ -87,20 +88,6 @@ class GetSearchQueryActivityTask(object):
                     })
             results.append({'term': term, 'data': responses})
         return results
-
-
-class DateRange(object):
-
-    def __init__(self, start, end):
-        self.start = start
-        self.end = end
-
-    @staticmethod
-    def from_date_strings(start, end):
-        fmt = '%Y-%m-%dT%H:%M:%SZ'
-        return DateRange(
-            datetime.strptime(start, fmt), datetime.strptime(end, fmt))
-
 
 class CommunitiesService(object):
 

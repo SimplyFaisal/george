@@ -9,6 +9,7 @@ from networkx.readwrite import json_graph
 import gensim
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import NMF
+from utils import DateRange
 
 
 class KeyWordExtractor(object):
@@ -39,10 +40,12 @@ class KeyWordExtractor(object):
 class TextacyKeywordExtractor(object):
 
     def get_keyword_graph(self, documents):
-        doc = textacy.doc.Doc(' '.join(messages))
+        doc = textacy.doc.Doc(unicode(' '.join(documents)))
         rank_output = textacy.keyterms.textrank(doc)
         G = self._create_graph(doc)
         keyterm_set = set(x[0] for x in rank_output)
+        for term, weight in rank_output:
+            G.node[term]['weight'] = weight
         non_keywords = [x for x in G.nodes() if x not in keyterm_set]
         G.remove_nodes_from(non_keywords)
         return json_graph.node_link_data(G)
@@ -91,14 +94,14 @@ def _nmf(texts):
         print()
     print 'finishing nmf -------------'
 
-now = datetime.datetime.now()
-then = now - datetime.timedelta(days=14)
-date_range = server.DateRange(start=then, end=now)
-date_filter = {'gte': date_range.start, 'lte': date_range.end}
-response = database.Message.search() \
-    .filter('range', date=date_filter) \
-    .filter('match', community='Georgia Tech') \
-    .execute()
-messages = [message.text for message in response]
-g = TextacyKeywordExtractor().get_keyword_graph(messages)
-print g
+# now = datetime.datetime.now()
+# then = now - datetime.timedelta(days=14)
+# date_range = server.DateRange(start=then, end=now)
+# date_filter = {'gte': date_range.start, 'lte': date_range.end}
+# response = database.Message.search() \
+#     .filter('range', date=date_filter) \
+#     .filter('match', community='Georgia Tech') \
+#     .execute()
+# messages = [message.text for message in response]
+# g = TextacyKeywordExtractor().get_keyword_graph(messages)
+# print g
