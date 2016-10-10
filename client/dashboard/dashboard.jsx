@@ -66,7 +66,7 @@ class CommunitySnapshotComponent extends React.Component {
 
   state = {
       activityData: [],
-      trendingData: [],
+      trendingData: null,
       chartType: ChartType.ACTIVITY,
       enableDragbox: false
 
@@ -78,6 +78,10 @@ class CommunitySnapshotComponent extends React.Component {
     this.colorScale = new Plottable.Scales.InterpolatedColor();
     this.colorScale.range(["#2ecc71", "#f1c40f", '#e74c3c']);
     this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
+    this.yLabel = new Plottable.Components.AxisLabel()
+      .xAlignment("left")
+      .yAlignment('top')
+      .angle(90);
     this.xAxis = new Plottable.Axes.Time(this.xScale, "bottom");
     this.lineDataset = new Plottable.Dataset();
     this.sparklines = new Plottable.Plots.Line();
@@ -122,7 +126,6 @@ class CommunitySnapshotComponent extends React.Component {
     // this.xScale.domain(d3.extent(data, d => d.date));
     this.sparklines.x(d => d.date, this.xScale);
     var chart;
-    var yLabel;
     switch (this.state.chartType) {
       case ChartType.ACTIVITY:
           let options = this.state.activityData.options;
@@ -131,22 +134,16 @@ class CommunitySnapshotComponent extends React.Component {
           this.yAxis.redraw();
           this.lineDataset.data(data);
           // this.sparklines.datasets([new Plottable.Dataset(data)]);
-          yLabel = new Plottable.Components.AxisLabel("# messages")
-            .xAlignment("left")
-            .yAlignment('top')
-            .angle(90);
+          this.yLabel.text("# messages");
           chart = this.sparklines;
         break;
       case ChartType.VOTES:
-        this.yScale = new Plottable.Scales.Linear();
+        this.yScale.domain(d3.extent(data, x => x.score.value));
         this.sparklines.y(d => d.score.value, this.yScale);
         this.lineDataset.data(data);
         this.yAxis.redraw();
         // this.sparklines.datasets([new Plottable.Dataset(data)]);
-        yLabel = new Plottable.Components.AxisLabel("average score")
-          .xAlignment("left")
-          .yAlignment('top')
-          .angle(90);
+        this.yLabel.text("average score")
         chart = this.sparklines;
         break;
       case ChartType.SENTIMENT:
@@ -159,8 +156,8 @@ class CommunitySnapshotComponent extends React.Component {
         let negative = new Plottable.Dataset(
             data.map((d) => { return { y: d.negative.value, x: d.date} }))
                 .metadata(3);
-        this.stacked
-            .x(d => d.x, this.xScale)
+        this.yScale.domain([0, 1]);
+        this.stacked.x(d => d.x, this.xScale)
             .y(d => d.y, this.yScale)
             .attr('fill', (d, i, dataset) =>  dataset.metadata(), this.colorScale);
         this.stacked.datasets([positive, neutral, negative]);
@@ -179,7 +176,7 @@ class CommunitySnapshotComponent extends React.Component {
 
     let group = new Plottable.Components.Group([this.dragbox, chart])
     let table = new Plottable.Components.Table([
-      [yLabel, this.yAxis, group],
+      [this.yLabel, this.yAxis, group],
       [null, null, this.xAxis]
     ]);
     table.renderTo(_id);
@@ -220,7 +217,7 @@ class CommunitySnapshotComponent extends React.Component {
                   <div>
                       <svg id={this.getId()} height="200"> </svg>
                   </div>
-                  <div>
+                  <div style={{display: this.state.enableDragbox ? 'block' : 'none'}}>
                       <KeywordPanel data={this.state.trendingData} id={this.getId()}/>
                   </div>
               </div>
@@ -254,8 +251,7 @@ class KeywordPanel extends React.Component {
         <div className="well well-sm">
             <svg
               id={'arc-diagram-' + this.props.id}
-              height="200"
-              width="600">
+              height="200">
             </svg>
         </div>
     )
@@ -263,21 +259,31 @@ class KeywordPanel extends React.Component {
 
   componentDidUpdate(prevProps, prevState) {
     let graph = this.props.data;
-    var width  = 600;           // width of svg image
-    var height = 200;           // height of svg image
-    var margin = 20;            // amount of margin around plot area
-    var pad = margin / 2;       // actual padding amount
-    var radius = 4;             // fixed node radius
-    var yfixed = pad;
-    if (graph.length == 0) {
+    if (!graph || graph.nodes.length == 0) {
       return;
     }
+    let _id = 'arc-diagram-' + this.props.id;
+    let container = document.getElementById(_id).parentElement;
+    let HEIGHT = 150;
+    let WIDTH = container.offsetWidth;
+
+    var width  = 600;           // width of svg image
+    var height = 200;           // height of svg image
+    var margin = 50;            // amount of margin around plot area
+    var pad = margin / 2;       // actual padding amount
+
+
+    let MIN_RADIUS = 5
+    let MAX_RADIUS = 30;
+    var YFIXED = margin +  MAX_RADIUS;
     graph.links.forEach((d) => {
         d.source = graph.nodes[d.source];
         d.target = graph.nodes[d.target];
     });
-    let svg = d3.select('#arc-diagram-' + this.props.id)
-        .attr('fill', 'red');
+
+    let svg = d3.select('#' +_id)
+        .attr('fill', 'red')
+        .attr('width', container.offsetWidth);
 
     // create plot area within svg image
     let plot = svg.append("g")
@@ -289,51 +295,101 @@ class KeywordPanel extends React.Component {
         return b.weight - a.weight;
     });
 
+    let tip = d3Tip.default()
+        .attr('class', 'd3-tip')
+        .html(function(d) { return d.id; });
+
     // used to scale node index to x position
     var xscale = d3.scaleLinear()
         .domain([0, graph.nodes.length - 1])
-        .range([radius, width - margin - radius]);
+        .range([MAX_RADIUS + margin, WIDTH - margin - MAX_RADIUS]);
+
+    let xScale = d3.scaleLinear()
+        .domain([0, graph.nodes.length - 1])
+        .range([MAX_RADIUS + margin, WIDTH - margin - MAX_RADIUS])
 
     var radiusScale = d3.scaleLinear()
         .domain(d3.extent(graph.nodes, d => d.weight))
-        .range([5, 20]);
+        .range([MIN_RADIUS, MAX_RADIUS]);
+
+    var cpyScale = d3.scaleLinear()
+        .domain([pad, width])
+        .range([YFIXED + 40, height - pad])
+
     // calculate pixel location for each node
     graph.nodes.forEach(function(d, i) {
-        d.x = xscale(i);
-        d.y = yfixed;
+        d.x = xScale(i);
+        d.y = YFIXED;
     });
+
     plot.selectAll(".link")
         .data(graph.links)
         .enter()
         .append("path")
         .attr("class", "link")
         .attr('stroke', 'black')
-        .attr('fill', 'red')
+        .attr('stroke-width', 2)
         .attr("d", function(d, i) {
             var context = d3.path();
-            let radius = Math.abs(d.source.x - d.target.x) / 2;
+            let distance =  Math.abs(d.source.x - d.target.x);
+            let radius = distance / 2;
             let midpointX = (d.source.x + d.target.x) / 2;
-            // context.moveTo(d.source.x, d.source.y);
+            context.moveTo(d.source.x, d.source.y);
             // context.lineTo(d.target.x, d.target.y);
-            context.arc(midpointX, yfixed, radius, 0, Math.PI);
+            let cpx = midpointX;
+            let cpy = cpyScale(distance);
+            // context.arc(midpointX, YFIXED, radius, 0, Math.PI);
+            context.quadraticCurveTo(cpx, cpy, d.target.x, d.target.y)
             return context.toString();
+        })
+        .on('mouseover', function(d, i) {
+          d3.select(this)
+          .attr('stroke-width', 4);
+
+          d3.selectAll('.node')
+              .filter(x => x.id == d.source.id || x.id == d.target.id)
+              .attr('r', x => radiusScale(x.weight) * 1.25);
+        })
+        .on('mouseout', function(d, i) {
+          d3.select(this)
+              .attr('stroke-width', 2)
+
+          d3.selectAll('.node')
+              .filter(x => x.id == d.source.id || x.id == d.target.id)
+              .attr('r', x => radiusScale(x.weight));
         });
 
+    plot.call(tip);
     plot.selectAll("circle")
         .data(graph.nodes)
         .enter()
         .append("circle")
         .attr("class", "node")
+        .attr('fill', '#2196f3')
         // .attr("id", function(d, i) { return d.name; })
-        .attr("cx", function(d, i) {
-          return d.x;
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y)
+        .attr("r",  (d, i)  => radiusScale(d.weight))
+        .on('mouseover', function(d) {
+          d3.select(this)
+              .transition()
+              .attr('r', radiusScale(d.weight) * 1.25);
+          tip.show(d)
         })
-        .attr("cy", function(d, i) {
-          return d.y;
-        })
-        .attr("r",  function(d, i) {
-          return radiusScale(d.weight);
-        })
+        .on('mouseout', function(d) {
+          d3.select(this)
+              .transition()
+              .attr('r', radiusScale(d.weight));
+          tip.hide(d);
+        });
+
+    plot.selectAll('text')
+        .data(graph.nodes)
+        .enter()
+        .append('text')
+        .attr('x', d => d.x - radiusScale(d.weight))
+        .attr('y', d => d.y - (1.5 * radiusScale(d.weight)) - 10)
+        .text(d => d.id);
   }
 }
 
@@ -362,9 +418,9 @@ export default class DashboardPage extends React.Component {
           </div>
         </div>
         <div className="row">
-          <div className="col-md-12">
+          {/* <div className="col-md-12"> */}
             {panels}
-          </div>
+          {/* </div> */}
         </div>
       </div>
     )
