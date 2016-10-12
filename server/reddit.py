@@ -16,8 +16,13 @@ logging.basicConfig(level=logging.DEBUG,
 logging.getLogger('requests').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
-
-SUBREDDITS = [
+POLITICAL_SUBREDDITS = [
+    {'name': 'Hillary', 'subreddit': 'HillaryClinton'},
+    {'name': 'Trump', 'subreddit': 'The_Donald'},
+    {'name': 'Johnson', 'subreddit': 'GaryJohnson'},
+    {'name': 'Stein', 'subreddit': 'JillStein'}
+]
+COLLEGE_SUBREDDITS = [
         {'name': 'McGill University', 'subreddit': 'mcgill'},
         {'name': 'Georgia Tech', 'subreddit': 'gatech'},
         {'name': 'UT Austin', 'subreddit': 'UTAustin'},
@@ -144,7 +149,7 @@ class RedditWorker(threading.Thread):
             else:
                 # The college is not in the database so just get the last weeks
                 # worth of data.
-                end_date = start_date - timedelta(hours=12)
+                end_date = start_date - timedelta(hours=24)
             self.crawl(subreddit_info, start_date, end_date)
             logger.info('Finished {} from {} to {}'.format(
                 subreddit_info['name'], start_date, end_date))
@@ -254,8 +259,8 @@ class ElasticSearchClient(object):
         return None
 
 
-def insert_communities():
-    for subreddit in SUBREDDITS:
+def insert_communities(subs):
+    for subreddit in subs:
         print subreddit
         message = database.Community(
             identifier=subreddit['subreddit'],
@@ -263,10 +268,10 @@ def insert_communities():
         message.save()
 
 
-def crawl_reddit():
-    crawler = RedditCrawler(SUBREDDITS)
+def crawl_reddit(subs):
+    crawler = RedditCrawler(subs)
     crawler.start()
 
 if __name__ == '__main__':
-    crawl_reddit()
-    # insert_communities()
+    # crawl_reddit(POLITICAL_SUBREDDITS)
+    insert_communities(POLITICAL_SUBREDDITS)

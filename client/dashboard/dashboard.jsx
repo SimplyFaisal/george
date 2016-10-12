@@ -348,14 +348,17 @@ class KeywordPanel extends React.Component {
 
           d3.selectAll('.node')
               .filter(x => x.id == d.source.id || x.id == d.target.id)
+              .transition()
               .attr('r', x => radiusScale(x.weight) * 1.25);
         })
         .on('mouseout', function(d, i) {
           d3.select(this)
+              .transition()
               .attr('stroke-width', 2)
 
           d3.selectAll('.node')
               .filter(x => x.id == d.source.id || x.id == d.target.id)
+              .transition()
               .attr('r', x => radiusScale(x.weight));
         });
 
@@ -371,16 +374,23 @@ class KeywordPanel extends React.Component {
         .attr("cy", d => d.y)
         .attr("r",  (d, i)  => radiusScale(d.weight))
         .on('mouseover', function(d) {
-          d3.select(this)
+          let adjacent = graph.links.filter(x => d.id == x.source.id || d.id == x.target.id);
+          let s = d3.set();
+          adjacent.forEach((x) => {
+            s.add(x.source.id);
+            s.add(x.target.id);
+          });
+          d3.selectAll('.node')
+              .filter(x => s.has(x.id))
               .transition()
-              .attr('r', radiusScale(d.weight) * 1.25);
-          tip.show(d)
+              .attr('r', x => radiusScale(x.weight) * 1.25);
+          // tip.show(d)
         })
         .on('mouseout', function(d) {
-          d3.select(this)
+          d3.selectAll('.node')
               .transition()
-              .attr('r', radiusScale(d.weight));
-          tip.hide(d);
+              .attr('r', x => radiusScale(x.weight));
+          // tip.hide(d);
         });
 
     plot.selectAll('text')

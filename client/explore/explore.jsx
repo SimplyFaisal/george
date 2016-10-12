@@ -4,6 +4,7 @@ import axios from 'axios';
 import moment from 'moment';
 import Plottable from 'plottable';
 import * as d3 from "d3";
+import * as d3Tip from 'd3-tip';
 
 
 
@@ -100,8 +101,8 @@ class ExploreSearchComponent extends React.Component {
     let hasError = this.state.dateRange == null
         || this.state.terms.length == 0
         || this.state.communities.length == 0;
-    this.setState({hasError});
     if (hasError) {
+      this.setState({hasError});
       return;
     }
     let communities = this.state.communities.map(x => x.displayName).join(',');
@@ -195,17 +196,31 @@ class ExploreChartComponent extends React.Component {
     super(props);
     this.xScale = new Plottable.Scales.Time();
     this.yScale = new Plottable.Scales.Linear();
+    this.colorScale = new Plottable.Scales.Color();
     this.yAxis = new Plottable.Axes.Numeric(this.yScale, "left");
     this.xAxis = new Plottable.Axes.Time(this.xScale, "bottom");
+    this.yLabel =  new Plottable.Components.AxisLabel()
+        .xAlignment("left")
+        .yAlignment('top')
+        .angle(90);
+    this.legend = new Plottable.Components.Legend(this.colorScale);
+
+    this.bPxScale = new Plottable.Scales.Category();
+    this.bPyScale = new Plottable.Scales.Linear()
+    this.barPlot =  new Plottable.Plots.Bar()
+        .x(d => d.community, this.bPxScale)
+        .y(d => d.average, this.bPyScale)
+        .attr('fill', d => d.community, this.colorScale);
+
 
     this.sparkline = new Plottable.Plots.Line()
         .x(d => d.date, this.xScale)
-        .y(d => d.doc_count, this.yScale);
+        .y(d => d.doc_count, this.yScale)
+        .attr("stroke", function(d) { return d.community; }, this.colorScale);
 
     this.scatter = new Plottable.Plots.Scatter();
     this.scatter.x(d => d.date, this.xScale)
-        .y(d => d.doc_count, this.yScale)
-        .attr("fill", "#001742");
+        .y(d => d.doc_count, this.yScale);
   }
 
   componentDidMount = () => {
@@ -224,40 +239,92 @@ class ExploreChartComponent extends React.Component {
     let datasets = this.state.data.data.map((x) => {
       let points = x.activity.map(p => {
         p.date = new Date(p.key);
+        p.community = x.community;
         return p;
       });
+      // console.log(this.colorScale.scale(x.community));
       return new Plottable.Dataset(points);
     });
-    let _id = '#' + this.getId();
+    let communities = this.state.data.data.map(x => x.community);
+    console.log(communities)
+    this.colorScale.domain(communities);
+    let _id = '#' + this.getLinePlotId();
 
     // this.xScale.domain(d3.extent(data, d => d.date));
     // this.yScale.domain([options.yMin, options.yMax]);
     this.sparkline.datasets(datasets);
     this.scatter.datasets(datasets);
+    let averages = this.state.data.data.map((x) => {
+      return {community: x.community, average: d3.mean(x.activity, d => d.doc_count)}
+    });
 
-    let yLabel = new Plottable.Components.AxisLabel("# messages")
-      .xAlignment("left")
-      .yAlignment('top')
-      .angle(90);
+    this.barPlot.datasets([new Plottable.Dataset(averages)])
+    let xAxisLabel = new Plottable.Components.AxisLabel("Average")
+        .yAlignment("center");
+    console.log(averages);
+    let barChart = new Plottable.Components.Table([
+      [null, this.barPlot],
+      [null, xAxisLabel]
+    ])
+    barChart.renderTo('#' + this.getBarPlotId());
+    // Initializing tooltip anchor
+    var tooltipAnchorSelection = this.barPlot.foreground().append("circle").attr({
+      r: 3,
+      opacity: 0
+    });
 
-    let group = new Plottable.Components.Group([this.sparkline, this.scatter])
-    let chart = new Plottable.Components.Table([
-      [yLabel, this.yAxis, group],
+    var tooltipAnchor = $(tooltipAnchorSelection.node());
+    tooltipAnchor.tooltip({
+      animation: false,
+      container: "body",
+      placement: "auto",
+      title: "text",
+      trigger: "manual"
+    });
+    // Setup Interaction.Pointer
+    var pointer = new Plottable.Interactions.Pointer();
+    pointer.onPointerMove((p) => {
+      var closest = this.barPlot.entityNearest(p);
+      if (closest) {
+        tooltipAnchorSelection.attr({
+          cx: closest.position.x,
+          cy: closest.position.y,
+          "data-original-title": closest.datum.community + ' ' + closest.datum.average
+        });
+        tooltipAnchor.tooltip("show");
+      }
+    });
+
+    pointer.onPointerExit(function() {
+      tooltipAnchor.tooltip("hide");
+    });
+
+    pointer.attachTo(this.barPlot);
+
+
+    this.yLabel.text('# messages');
+    // let group = new Plottable.Components.Group([this.sparkline)
+    let lineChart = new Plottable.Components.Table([,
+      [null, null, this.legend],
+      [this.yLabel, this.yAxis, this.sparkline],
       [null, null, this.xAxis]
     ]);
-    chart.renderTo(_id);
+    lineChart.renderTo(_id);
   }
 
   render = () => {
     return (
       <div className="panel panel-primary">
         <div className="panel-heading">
-          <h3 className="panel-title">Interest in {this.props.data.term} over time</h3>
+          <h3 className="panel-title">
+            Interest in <span className="text-warning">{this.props.data.term}</span> over time</h3>
         </div>
         <div className="panel-body">
-          <div className="col-md-2">left Coluumn</div>
+          <div className="col-md-2">
+            <svg id={this.getBarPlotId()} height="250"> </svg>
+          </div>
           <div className="col-md-10">
-            <svg id={this.getId()} height="250"> </svg>
+            <svg id={this.getLinePlotId()} height="250"> </svg>
           </div>
         </div>
     </div>
@@ -266,6 +333,12 @@ class ExploreChartComponent extends React.Component {
 
   getId = () => {
     return this.props.data.term;
+  }
+  getBarPlotId = () => {
+    return 'bar-plot-' + this.getId();
+  }
+  getLinePlotId = () => {
+    return 'line-plot-' + this.getId();
   }
 }
 

@@ -4,7 +4,7 @@ from elasticsearch_dsl.connections import connections
 # Define a default Elasticsearch client
 connections.create_connection(hosts=['localhost'])
 
-GeorgeIndex = Index('george')
+GeorgeIndex = Index('politics')
 
 
 @GeorgeIndex.doc_type
