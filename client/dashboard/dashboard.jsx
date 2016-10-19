@@ -6,7 +6,6 @@ import Select from 'react-select';
 import * as d3 from "d3";
 import * as d3Tip from 'd3-tip';
 import Plottable from 'plottable';
-import { StickyContainer, Sticky } from 'react-sticky';
 
 import {store} from '../store.jsx';
 import CommunityMultiSelectDropDown from '../components/CommunityMultiSelectDropDown.jsx';

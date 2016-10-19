@@ -8,7 +8,7 @@ import {updateNavBarContent, getCommunities} from './actions.jsx';
 import SearchBox from './components/SearchBox.jsx';
 import DashboardPage from './dashboard/dashboard.jsx';
 import ExplorePage from './explore/explore.jsx';
-
+import GlancePage from './glance.jsx';
 
 class AppFrame extends React.Component {
   state = {
@@ -99,6 +99,7 @@ ReactDOM.render(
     <Router  history={hashHistory}>
         <Route path="/" component={AppFrame}>
           <IndexRoute component={DashboardPage} />
+          {/* <Route path="dashboard" component={DashboardPage} /> */}
           <Route path="explore" component={ExplorePage} />
           <Route path="trending" component={TrendingPage} />
         </Route>

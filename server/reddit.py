@@ -17,10 +17,10 @@ logging.getLogger('requests').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 POLITICAL_SUBREDDITS = [
-    {'name': 'Hillary', 'subreddit': 'HillaryClinton'},
-    {'name': 'Trump', 'subreddit': 'The_Donald'},
-    {'name': 'Johnson', 'subreddit': 'GaryJohnson'},
-    {'name': 'Stein', 'subreddit': 'JillStein'}
+    {'name': 'r/HillaryClinton', 'subreddit': 'HillaryClinton'},
+    {'name': 'r/The_Donald', 'subreddit': 'The_Donald'},
+    {'name': 'r/GaryJohnson', 'subreddit': 'GaryJohnson'},
+    {'name': 'r/JillStein', 'subreddit': 'JillStein'}
 ]
 COLLEGE_SUBREDDITS = [
         {'name': 'McGill University', 'subreddit': 'mcgill'},
@@ -44,6 +44,52 @@ COLLEGE_SUBREDDITS = [
         {'name': 'University of Missouri', 'subreddit': 'mizzou'},
         {'name': 'University of Georgia', 'subreddit': 'UGA'}
   ]
+
+class RedditCrawler(object):
+
+    def __init__(self, subreddits={}):
+        """
+        Input:
+            colleges:
+        """
+        self.subreddits = subreddits
+
+    def start(self):
+        """
+        Activate the threads
+        """
+        q = Queue()
+        for i, _ in enumerate(self.subreddits):
+            logger.info('Spawned #{}'.format(i))
+            client = RedditElasticSearchClient()
+            worker = RedditWorker(
+                RedditApiClient(), client,  q)
+            worker.daemon = True
+            worker.start()
+        for subreddit in self.subreddits:
+            logger.info('Queueing {}'.format(subreddit['name']))
+            q.put(subreddit)
+            # Lets the main thread exit even if the workers are blocking.
+
+        # Forces the main thread to wait for the queue to finish processing
+        # all the tasks.
+        q.join()
+
+@database.GeorgeIndex.doc_type
+class RedditMessage(database.Message):
+    pass
+
+
+class RedditAdapter(database.Adapter):
+
+    def run(self):
+        crawler = RedditCrawler(subreddits=POLITICAL_SUBREDDITS)
+        crawler.start()
+        return
+
+    def get_message_type(self):
+        return RedditMessage
+
 
 class RedditApiClient(object):
     """ Wrapper around praw """
@@ -179,38 +225,7 @@ class RedditWorker(threading.Thread):
             lower -= self.interval
 
 
-class RedditCrawler(object):
-
-    def __init__(self, subreddits):
-        """
-        Input:
-            colleges:
-        """
-        self.subreddits = subreddits
-
-    def start(self):
-        """
-        Activate the threads
-        """
-        q = Queue()
-        for i, _ in enumerate(self.subreddits):
-            logger.info('Spawned #{}'.format(i))
-            client = ElasticSearchClient()
-            worker = RedditWorker(
-                RedditApiClient(), client,  q)
-            worker.daemon = True
-            worker.start()
-        for subreddit in self.subreddits:
-            logger.info('Queueing {}'.format(subreddit['name']))
-            q.put(subreddit)
-            # Lets the main thread exit even if the workers are blocking.
-
-        # Forces the main thread to wait for the queue to finish processing
-        # all the tasks.
-        q.join()
-
-
-class ElasticSearchClient(object):
+class RedditElasticSearchClient(object):
 
     def __init__(self):
         return
@@ -219,7 +234,7 @@ class ElasticSearchClient(object):
         total = 0
         for post in posts:
             post_sentiment = vader(post.selftext.encode('utf8'))
-            message = database.Message(
+            message = RedditMessage(
                 text=post.selftext,
                 date=datetime.utcfromtimestamp(post.created_utc),
                 community=subreddit_info['name'],
@@ -230,7 +245,7 @@ class ElasticSearchClient(object):
             comments = get_comments(post)
             for comment in comments:
                 _sentiment = vader(comment.body.encode('utf8'))
-                comment_message = database.Message(
+                comment_message = RedditMessage(
                     text=comment.body,
                     date=datetime.utcfromtimestamp(comment.created_utc),
                     community=subreddit_info['name'],
@@ -249,29 +264,9 @@ class ElasticSearchClient(object):
     def last_post_date(self, subreddit_info):
         """
         Returns the date of the last post crawled for the request subreddit
-
         Args:
             subreddit_info (dict): { 'name': name of the college,
                 'subreddit': name of the subreddit}
-
         Returns: A datetime object
         """
         return None
-
-
-def insert_communities(subs):
-    for subreddit in subs:
-        print subreddit
-        message = database.Community(
-            identifier=subreddit['subreddit'],
-            displayName=subreddit['name'],)
-        message.save()
-
-
-def crawl_reddit(subs):
-    crawler = RedditCrawler(subs)
-    crawler.start()
-
-if __name__ == '__main__':
-    # crawl_reddit(POLITICAL_SUBREDDITS)
-    insert_communities(POLITICAL_SUBREDDITS)

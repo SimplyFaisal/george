@@ -5,9 +5,11 @@ from datetime import datetime
 import falcon
 import falcon_cors
 from elasticsearch import Elasticsearch
-from elasticsearch_dsl import Search
+from elasticsearch_dsl import Search, A
+from networkx.readwrite import json_graph
 
 import database
+import reddit
 import analysis
 from utils import DateRange
 
@@ -22,7 +24,12 @@ class GetCommunitiesTask(object):
 
     @staticmethod
     def execute():
-        return database.Community.search().execute()
+        s = Search()
+        s.aggs.bucket('communities', 'terms', field='community')
+        communities = [hit['key']
+            for hit in s.execute().aggregations.communities.buckets]
+        # hack to get rid of the r returned by the query
+        return [{'identifier': c, 'displayName': c} for c in communities if c != 'r']
 
 
 
@@ -31,7 +38,7 @@ class GetTrendingTopicsTask(object):
     @staticmethod
     def execute(community_id, date_range):
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
-        response = database.Message.search() \
+        response = reddit.RedditMessage.search() \
             .filter('range', date=date_filter) \
             .filter('match', community=community_id) \
             .execute()
@@ -44,8 +51,9 @@ class GetCommunityActivityTask(object):
 
     @staticmethod
     def execute(community_id, date_range, interval):
+        print community_id, date_range, interval
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
-        s = Search().filter('range', date=date_filter)\
+        s = reddit.RedditMessage.search().filter('range', date=date_filter)\
             .filter('match', community=community_id)
         s.aggs \
             .bucket(
@@ -88,13 +96,20 @@ class GetSearchQueryActivityTask(object):
                     })
             results.append({'term': term, 'data': responses})
         return results
+#
+# class CommunitiesService(object):
+#
+#     def on_get(self, request, response):
+#         communities = GetCommunitiesTask.execute()
+#         response.body = json.dumps(
+#             [{'community': community.to_dict()} for community in communities])
 
 class CommunitiesService(object):
 
     def on_get(self, request, response):
         communities = GetCommunitiesTask.execute()
-        response.body = json.dumps(
-            [{'community': community.to_dict()} for community in communities])
+        response.body = json.dumps([{'community': c} for c in communities])
+
 
 
 class CommunitySnapshotService(object):
@@ -121,7 +136,7 @@ class TrendingTopicService(object):
         )
         trending_topics_response = GetTrendingTopicsTask.execute(
             request.get_param('community_id'), date_range)
-        response.body = json.dumps(trending_topics_response)
+        response.body = json.dumps(json_graph.node_link_data(trending_topics_response))
 
 class ExploreService(object):
 
@@ -138,8 +153,35 @@ class ExploreService(object):
         response.body = json.dumps(explore_response, default=json_util.default)
         return
 
+class GlanceService(object):
+
+    def on_get(self, request, response):
+        communities = GetCommunitiesTask.execute()
+        date_range = DateRange.past_day()
+        date_filter = {'gte': date_range.start, 'lte': date_range.end}
+        body = {'communities': [], 'topics': []}
+        topics = set()
+        keyword_extractor = analysis.TextacyKeywordExtractor()
+        for community in communities:
+            r = reddit.RedditMessage.search() \
+                .filter('range', date=date_filter) \
+                .filter('match', community=community) \
+                .execute()
+            messages = [message.text for message in r]
+            payload = {}
+            payload['id'] = community
+            payload['doc_count'] = len(messages)
+            terms = keyword_extractor.key_terms_from_semantic_network(messages)
+            payload['topics'] = [{'id': term, 'score': score} for term, score in terms]
+            for term, scores in terms:
+                topics.add(term)
+            body['communities'].append(payload)
+        body['topics'] = list(topics)
+        response.body = json.dumps(body)
+
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())
 api.add_route('/topics', TrendingTopicService())
 api.add_route('/explore', ExploreService())
+api.add_route('/glance', GlanceService())

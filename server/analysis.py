@@ -4,7 +4,6 @@ import database
 import textacy
 import matplotlib.pyplot as plt
 import networkx as nx
-from networkx.readwrite import json_graph
 
 import gensim
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -39,18 +38,18 @@ class KeyWordExtractor(object):
 
 class TextacyKeywordExtractor(object):
 
-    def get_keyword_graph(self, documents):
+    def get_keyword_graph(self, documents, n_keyterms=10):
         doc = textacy.doc.Doc(unicode(' '.join(documents)))
-        rank_output = textacy.keyterms.textrank(doc)
-        G = self._create_graph(doc)
+        rank_output = textacy.keyterms.textrank(doc, n_keyterms=n_keyterms)
+        G = self._create_graph(doc, n_keyterms=n_keyterms)
         keyterm_set = set(x[0] for x in rank_output)
         for term, weight in rank_output:
             G.node[term]['weight'] = weight
         non_keywords = [x for x in G.nodes() if x not in keyterm_set]
         G.remove_nodes_from(non_keywords)
-        return json_graph.node_link_data(G)
+        return G
 
-    def _create_graph(self, doc,  window_width=2, edge_weighting='binary'):
+    def _create_graph(self, doc, n_keyterms=10, window_width=2, edge_weighting='binary'):
         good_word_list = [textacy.spacy_utils.normalized_str(word)
         for word in doc
             if not word.is_stop and not word.is_punct and word.pos_ in {'NOUN', 'ADJ'}]
@@ -59,6 +58,16 @@ class TextacyKeywordExtractor(object):
             window_width=window_width,
             edge_weighting=edge_weighting)
         return graph
+
+    def key_terms_from_semantic_network(
+            self,
+            documents,
+            join_key_words=True,
+            n_keyterms=15):
+        doc = textacy.doc.Doc(unicode(' '.join(documents)))
+        terms = textacy.keyterms.key_terms_from_semantic_network(
+            doc, join_key_words=join_key_words, n_keyterms=n_keyterms)
+        return terms
 
 
 def lsi(texts):
@@ -93,15 +102,3 @@ def _nmf(texts):
                         for i in topic.argsort()[:-n_top_words - 1:-1]]))
         print()
     print 'finishing nmf -------------'
-
-# now = datetime.datetime.now()
-# then = now - datetime.timedelta(days=14)
-# date_range = server.DateRange(start=then, end=now)
-# date_filter = {'gte': date_range.start, 'lte': date_range.end}
-# response = database.Message.search() \
-#     .filter('range', date=date_filter) \
-#     .filter('match', community='Georgia Tech') \
-#     .execute()
-# messages = [message.text for message in response]
-# g = TextacyKeywordExtractor().get_keyword_graph(messages)
-# print g

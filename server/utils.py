@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class DateRange(object):
@@ -12,3 +12,9 @@ class DateRange(object):
         fmt = '%Y-%m-%dT%H:%M:%SZ'
         return DateRange(
             datetime.strptime(start, fmt), datetime.strptime(end, fmt))
+
+    @staticmethod
+    def past_day():
+        end = datetime.now()
+        start = end - timedelta(hours=24)
+        return DateRange(start, end)
