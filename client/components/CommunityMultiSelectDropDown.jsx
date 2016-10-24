@@ -12,11 +12,14 @@ export default class CommunityMultiSelectDropDown extends React.Component {
 
   componentDidMount = () => {
     let self = this;
-    store.subscribe(() => {
+    let unsubscribe =store.subscribe(() => {
       let storeState = store.getState();
-      self.setState({
-        options: storeState.communities.map(this.communityToOption),
-      });
+      if (storeState.communities && storeState.communities.length != 0) {
+        this.setState({
+          options: storeState.communities.map(this.communityToOption),
+        });
+        unsubscribe();
+      }
     });
   }
 

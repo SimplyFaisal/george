@@ -4,6 +4,7 @@ import random
 import string
 import threading
 
+from elasticsearch_dsl import Index
 from vaderSentiment.vaderSentiment import sentiment as vader
 
 import database
@@ -75,8 +76,13 @@ class RedditCrawler(object):
         # all the tasks.
         q.join()
 
-@database.GeorgeIndex.doc_type
+RedditIndex = Index('reddit')
+
+@RedditIndex.doc_type
 class RedditMessage(database.Message):
+
+    class Meta:
+        index = 'reddit'
     pass
 
 
@@ -235,6 +241,7 @@ class RedditElasticSearchClient(object):
         for post in posts:
             post_sentiment = vader(post.selftext.encode('utf8'))
             message = RedditMessage(
+                _id=post.id,
                 text=post.selftext,
                 date=datetime.utcfromtimestamp(post.created_utc),
                 community=subreddit_info['name'],

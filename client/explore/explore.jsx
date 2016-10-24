@@ -9,7 +9,7 @@ import * as d3Tip from 'd3-tip';
 
 
 import {store} from '../store.jsx';
-import {DateRange} from '../utils.jsx';
+import {DateRange, API, PORTS} from '../utils.jsx';
 import CommunityMultiSelectDropDown from '../components/CommunityMultiSelectDropDown.jsx';
 import DateRangeDropdown from '../components/DateRangeDropdown.jsx';
 import {updateNavBarContent, getCommunities} from '../actions.jsx';
@@ -116,7 +116,7 @@ class ExploreSearchComponent extends React.Component {
         interval: this.state.dateRange.interval
       }
     };
-    axios.get('http://localhost:8000/explore', config)
+    axios.get(`${this.getUrl()}/explore`, config)
       .then((response) => {
         this.props.onSubmit(response.data);
       });
@@ -140,6 +140,11 @@ class ExploreSearchComponent extends React.Component {
     }
     terms.push({id: terms.length, value: ''});
     this.setState({terms});
+  }
+
+  getUrl = () => {
+    let port = PORTS[this.props.source];
+    return `${API}:${port}`;
   }
 }
 
@@ -246,7 +251,6 @@ class ExploreChartComponent extends React.Component {
       return new Plottable.Dataset(points);
     });
     let communities = this.state.data.data.map(x => x.community);
-    console.log(communities)
     this.colorScale.domain(communities);
     let _id = '#' + this.getLinePlotId();
 
@@ -261,7 +265,6 @@ class ExploreChartComponent extends React.Component {
     this.barPlot.datasets([new Plottable.Dataset(averages)])
     let xAxisLabel = new Plottable.Components.AxisLabel("Average")
         .yAlignment("center");
-    console.log(averages);
     let barChart = new Plottable.Components.Table([
       [null, this.barPlot],
       [null, xAxisLabel]
@@ -276,7 +279,7 @@ class ExploreChartComponent extends React.Component {
     var tooltipAnchor = $(tooltipAnchorSelection.node());
     tooltipAnchor.tooltip({
       animation: false,
-      container: "body",
+      container: 'body',
       placement: "auto",
       title: "text",
       trigger: "manual"
@@ -351,7 +354,7 @@ export default class ExplorePage extends React.Component {
     let navBarContent = {
       leftContent: <li><a href="">Explore</a></li>,
       centerContent: null,
-      rightContent: null,
+      rightContent: this.props.params.source,
     }
     store.dispatch(updateNavBarContent(navBarContent));
   }
@@ -362,11 +365,11 @@ export default class ExplorePage extends React.Component {
 
   render = () => {
     let panels = this.state.searchResults.map(x => {
-      return <ExploreChartComponent key={x.term} data={x}/>
+      return <ExploreChartComponent key={x.term} data={x} source={this.props.params.source}/>
     });
     return (
       <div>
-        <ExploreSearchComponent onSubmit={this.handleSubmit}/>
+        <ExploreSearchComponent onSubmit={this.handleSubmit} source={this.props.params.source}/>
         {panels}
       </div>
     )

@@ -73,4 +73,7 @@ class Tooltip {
     this.anchor.attr('transform', 'translate(' + x + ',' + (y - 10) + ')');
   }
 }
-export {DateRange, Tooltip, ChartType};
+
+let API = `http://${__HOST__}`;
+let PORTS = {reddit: '8000', twitter: 8001}
+export {DateRange, Tooltip, ChartType, API, PORTS};

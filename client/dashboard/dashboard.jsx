@@ -10,7 +10,7 @@ import Plottable from 'plottable';
 import {store} from '../store.jsx';
 import CommunityMultiSelectDropDown from '../components/CommunityMultiSelectDropDown.jsx';
 import DateRangeDropdown from '../components/DateRangeDropdown.jsx';
-import {DateRange, Tooltip, ChartType} from '../utils.jsx';
+import {DateRange, Tooltip, ChartType, API, PORTS} from '../utils.jsx';
 
 class DashboardFilterComponent extends React.Component {
   state = {
@@ -240,7 +240,12 @@ class CommunitySnapshotComponent extends React.Component {
   }
 
   getTrendingTopics(config) {
-    return axios.get('http://localhost:8000/topics', config);
+    return axios.get(`${this.getUrl()}/topics`, config);
+  }
+
+  getUrl = () => {
+    let port = PORTS[this.props.source];
+    return `${API}:${port}`;
   }
 }
 
@@ -283,10 +288,10 @@ class KeywordPanel extends React.Component {
     let svg = d3.select('#' +_id)
         .attr('fill', 'red')
         .attr('width', container.offsetWidth);
-
+    let plotId = `plot-${this.props.id}`
     // create plot area within svg image
     let plot = svg.append("g")
-        .attr("id", "plot")
+        .attr("id", plotId)
         .attr("transform", "translate(" + pad + ", " + pad + ")");
 
     // sort nodes by group
@@ -414,7 +419,8 @@ export default class DashboardPage extends React.Component {
           key={i.community.identifier}
           community={i.community}
           activityData={i.activityData}
-          trendingData={i.trendingData}/>
+          trendingData={i.trendingData}
+          source={this.props.params.source}/>
       )
     });
     return (
@@ -445,7 +451,7 @@ export default class DashboardPage extends React.Component {
           interval: filters.dateRange.interval
         }
       };
-      return axios.get('http://localhost:8000/snapshot', config);
+      return axios.get(`${this.getUrl()}/snapshot`, config);
     });
     axios.all(requests)
       .then((responses) => {
@@ -474,5 +480,10 @@ export default class DashboardPage extends React.Component {
         });
         this.setState({data});
       });
+  }
+
+  getUrl = () => {
+    let port = PORTS[this.props.params.source];
+    return `${API}:${port}`;
   }
 }

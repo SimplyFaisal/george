@@ -3,6 +3,7 @@ const webpack = require('webpack');
 const autoprefixer = require('autoprefixer');
 const ExtractTextPlugin = require('extract-text-webpack-plugin');
 
+const HOST = JSON.stringify('localhost');
 module.exports = {
   entry: './main.js',
   output: { path: __dirname, filename: 'bundle.js' },
@@ -25,5 +26,7 @@ module.exports = {
     ]
   },
   postcss: [autoprefixer],
-  plugins: [new ExtractTextPlugin('bundle.css', { allChunks: true })]
+  plugins: [
+    new ExtractTextPlugin('bundle.css', { allChunks: true }),
+    new webpack.DefinePlugin({__HOST__: HOST})]
 };

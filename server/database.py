@@ -4,15 +4,10 @@ from elasticsearch_dsl.connections import connections
 # Define a default Elasticsearch client
 connections.create_connection(hosts=['localhost'])
 
-GeorgeIndex = Index('george')
-
 
 class Community(DocType):
     identifier = String()
     displayName = String()
-
-    class Meta:
-        index = 'george'
 
     def save(self, **kwargs):
         return super(Community, self).save(**kwargs)
@@ -27,11 +22,10 @@ class Message(DocType):
     negative = Float()
     neutral = Float()
 
-    class Meta:
-        index = 'george'
 
     def save(self, **kwargs):
         return super(Message, self).save(**kwargs)
+
 
 class Adapter(object):
 

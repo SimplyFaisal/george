@@ -8,11 +8,10 @@ from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search, A
 from networkx.readwrite import json_graph
 
-import database
+from config import Message
 import reddit
 import analysis
 from utils import DateRange
-
 import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
@@ -24,7 +23,7 @@ class GetCommunitiesTask(object):
 
     @staticmethod
     def execute():
-        s = Search()
+        s = Message.search()
         s.aggs.bucket('communities', 'terms', field='community')
         communities = [hit['key']
             for hit in s.execute().aggregations.communities.buckets]
@@ -38,7 +37,7 @@ class GetTrendingTopicsTask(object):
     @staticmethod
     def execute(community_id, date_range):
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
-        response = reddit.RedditMessage.search() \
+        response = Message.search() \
             .filter('range', date=date_filter) \
             .filter('match', community=community_id) \
             .execute()
@@ -53,7 +52,7 @@ class GetCommunityActivityTask(object):
     def execute(community_id, date_range, interval):
         print community_id, date_range, interval
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
-        s = reddit.RedditMessage.search().filter('range', date=date_filter)\
+        s = Message.search().filter('range', date=date_filter)\
             .filter('match', community=community_id)
         s.aggs \
             .bucket(
@@ -79,7 +78,7 @@ class GetSearchQueryActivityTask(object):
         for term in search_terms:
             responses = []
             for _id in community_ids:
-                s = Search() \
+                s = Message.search() \
                     .query('match', text=term) \
                     .filter('range', date=date_filter) \
                     .filter('match', community=_id)
@@ -96,13 +95,7 @@ class GetSearchQueryActivityTask(object):
                     })
             results.append({'term': term, 'data': responses})
         return results
-#
-# class CommunitiesService(object):
-#
-#     def on_get(self, request, response):
-#         communities = GetCommunitiesTask.execute()
-#         response.body = json.dumps(
-#             [{'community': community.to_dict()} for community in communities])
+
 
 class CommunitiesService(object):
 
