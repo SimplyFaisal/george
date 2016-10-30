@@ -217,7 +217,7 @@ class CommunitySnapshotComponent extends React.Component {
                       <svg id={this.getId()} height="200"> </svg>
                   </div>
                   <div style={{display: this.state.enableDragbox ? 'block' : 'none'}}>
-                      <KeywordPanel data={this.state.trendingData} id={this.getId()}/>
+                      <KeywordPanel data={this.state.trendingData} id={this.getId()} getHighlights={this.getHighlights}/>
                   </div>
               </div>
         </div>
@@ -232,7 +232,6 @@ class CommunitySnapshotComponent extends React.Component {
 
   onChartTypeChange = (item) => {
     this.setState({chartType: item.chartType})
-    console.log(this.state);
   }
 
   getId = () => {
@@ -246,6 +245,16 @@ class CommunitySnapshotComponent extends React.Component {
   getUrl = () => {
     let port = PORTS[this.props.source];
     return `${API}:${port}`;
+  }
+
+  getHighlights = (term) => {
+    let config = {
+      params: {
+        community: this.getId(),
+        term: term
+      }
+    };
+    return axios.get(`${this.getUrl()}/snippet`, config);
   }
 }
 
@@ -266,6 +275,7 @@ class KeywordPanel extends React.Component {
     if (!graph || graph.nodes.length == 0) {
       return;
     }
+    let props = this.props;
     let _id = 'arc-diagram-' + this.props.id;
     let container = document.getElementById(_id).parentElement;
     let HEIGHT = 150;
@@ -299,9 +309,22 @@ class KeywordPanel extends React.Component {
         return b.weight - a.weight;
     });
 
-    let tip = d3Tip.default()
-        .attr('class', 'd3-tip')
-        .html(function(d) { return d.id; });
+    // Initializing tooltip anchor
+    var tooltipAnchorSelection = plot.append("circle");
+    tooltipAnchorSelection.attr({
+      r: 3,
+      opacity: 0
+    });
+
+    var tooltipAnchor = $(tooltipAnchorSelection.node());
+    tooltipAnchor.tooltip({
+      animation: false,
+      container: "body",
+      placement: "top",
+      title: "Snippets",
+      trigger: "manual",
+      html: true
+    });
 
     // used to scale node index to x position
     var xscale = d3.scaleLinear()
@@ -366,7 +389,8 @@ class KeywordPanel extends React.Component {
               .attr('r', x => radiusScale(x.weight));
         });
 
-    plot.call(tip);
+    // plot.call(tip);
+
     plot.selectAll("circle")
         .data(graph.nodes)
         .enter()
@@ -388,14 +412,23 @@ class KeywordPanel extends React.Component {
               .filter(x => s.has(x.id))
               .transition()
               .attr('r', x => radiusScale(x.weight) * 1.25);
-          // tip.show(d)
+              props.getHighlights(d.id).then((response) => {
+                var snippets = response.data.map(t => `<p>${t}</p>`).join('');
+                tooltipAnchor.attr({
+                  cx: d.x,
+                  cy: d.y,
+                  'data-original-title': snippets
+                });
+                tooltipAnchor.tooltip("show");
+              });
         })
         .on('mouseout', function(d) {
           d3.selectAll('.node')
               .transition()
               .attr('r', x => radiusScale(x.weight));
-          // tip.hide(d);
-        });
+              // tooltipAnchor.tooltip("hide");
+        })
+
 
     plot.selectAll('text')
         .data(graph.nodes)

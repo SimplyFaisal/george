@@ -15,7 +15,7 @@ from utils import DateRange
 import logging
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
 
-cors = falcon_cors.CORS(allow_origins_list=['http://localhost:8080'])
+cors = falcon_cors.CORS(allow_all_origins=True)
 client = Elasticsearch()
 
 
@@ -172,9 +172,24 @@ class GlanceService(object):
         body['topics'] = list(topics)
         response.body = json.dumps(body)
 
+class SnippetService(object):
+
+    def on_get(self, request, response):
+        community = request.get_param('community')
+        term = request.get_param('term')
+        r = Message.search() \
+            .filter('match', community=community) \
+            .filter('match', text=term) \
+            .highlight('text', fragment_size=80) \
+            .execute()
+        highlights = [fragment for hit in r
+            for fragment in hit.meta.highlight.text]
+        response.body = json.dumps(highlights)
+
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())
 api.add_route('/snapshot', CommunitySnapshotService())
 api.add_route('/topics', TrendingTopicService())
 api.add_route('/explore', ExploreService())
 api.add_route('/glance', GlanceService())
+api.add_route('/snippet', SnippetService())
