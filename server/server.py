@@ -50,7 +50,6 @@ class GetCommunityActivityTask(object):
 
     @staticmethod
     def execute(community_id, date_range, interval):
-        print community_id, date_range, interval
         date_filter = {'gte': date_range.start, 'lte': date_range.end}
         s = Message.search().filter('range', date=date_filter)\
             .filter('match', community=community_id)
@@ -185,6 +184,7 @@ class SnippetService(object):
         highlights = [fragment for hit in r
             for fragment in hit.meta.highlight.text]
         response.body = json.dumps(highlights)
+
 
 api = falcon.API(middleware=[cors.middleware])
 api.add_route('/communities', CommunitiesService())

@@ -39,6 +39,7 @@
     "webpack": "^1.12.12"
   },
   "scripts": {
-    "start": "webpack-dev-server --progress --colors --inline"
+    "start": "webpack-dev-server --progress --colors --inline",
+    "build": "webpack --config webpack.config.prod.js"
   }
 }

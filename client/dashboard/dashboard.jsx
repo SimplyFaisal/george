@@ -160,6 +160,9 @@ class CommunitySnapshotComponent extends React.Component {
             .y(d => d.y, this.yScale)
             .attr('fill', (d, i, dataset) =>  dataset.metadata(), this.colorScale);
         this.stacked.datasets([positive, neutral, negative]);
+        // this.stacked.addDataset(positive)
+        //   .addDataset(neutral)
+        //   .addDataset(negative);
         chart = this.stacked;
         break;
       default:
@@ -426,7 +429,7 @@ class KeywordPanel extends React.Component {
           d3.selectAll('.node')
               .transition()
               .attr('r', x => radiusScale(x.weight));
-              // tooltipAnchor.tooltip("hide");
+              tooltipAnchor.tooltip("hide");
         })
 
 
@@ -501,7 +504,7 @@ export default class DashboardPage extends React.Component {
             community: filters.communities[i],
             activityData: {
               data: response.data.activity.map((x) => {
-                x.date = new Date(x.key);
+                x.date = new Date(x.key.$date);
                 return x;
               }),
               options: {yMin, yMax}
@@ -516,7 +519,8 @@ export default class DashboardPage extends React.Component {
   }
 
   getUrl = () => {
-    let port = PORTS[this.props.params.source];
+    // let port = PORTS[this.props.params.source];
+    let port = PORTS['reddit']
     return `${API}:${port}`;
   }
 }

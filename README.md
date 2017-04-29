@@ -1,2 +1,4 @@
 # george
-text visualization platform for social media communities
+
+## about
+George is a corpus visualization tool geared towards social media communities.

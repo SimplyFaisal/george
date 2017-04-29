@@ -2,13 +2,12 @@ import datetime
 import server
 import database
 import textacy
-import matplotlib.pyplot as plt
 import networkx as nx
 
-import gensim
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import NMF
 from utils import DateRange
+
 
 
 class KeyWordExtractor(object):
@@ -39,7 +38,8 @@ class KeyWordExtractor(object):
 class TextacyKeywordExtractor(object):
 
     def get_keyword_graph(self, documents, n_keyterms=10):
-        doc = textacy.doc.Doc(unicode(' '.join(documents)))
+        doc = textacy.doc.Doc(unicode(' '.join(documents)), lang=unicode('en'))
+        print doc.pos_tagged_text
         rank_output = textacy.keyterms.textrank(doc, n_keyterms=n_keyterms)
         G = self._create_graph(doc, n_keyterms=n_keyterms)
         keyterm_set = set(x[0] for x in rank_output)
@@ -68,37 +68,3 @@ class TextacyKeywordExtractor(object):
         terms = textacy.keyterms.key_terms_from_semantic_network(
             doc, join_key_words=join_key_words, n_keyterms=n_keyterms)
         return terms
-
-
-def lsi(texts):
-    print 'starting lsi ------------'
-    dictionary = gensim.corpora.Dictionary(texts)
-    corpus = [dictionary.doc2bow(text) for text in texts]
-    tfidf = gensim.models.TfidfModel(corpus)
-    corpus_tfidf = tfidf[corpus]
-    lsi = gensim.models.LsiModel(
-        corpus_tfidf, id2word=dictionary, num_topics=2)
-    lsi.print_topics(2)
-    print 'finishing lsi ------------'
-
-
-def _nmf(texts):
-    print 'starting nmf -------------'
-    n_features = 1000
-    n_top_words = 20
-    n_topics = 10
-    vectorizer = TfidfVectorizer(
-        max_df=0.95,
-        min_df=2,
-        max_features=n_features,
-        stop_words='english')
-    tfidf = vectorizer.fit_transform(texts)
-    nmf = NMF(n_components=n_topics, random_state=1).fit(tfidf)
-    feature_names = vectorizer.get_feature_names()
-
-    for topic_idx, topic in enumerate(nmf.components_):
-        print("Topic #%d:" % topic_idx)
-        print(" ".join([feature_names[i]
-                        for i in topic.argsort()[:-n_top_words - 1:-1]]))
-        print()
-    print 'finishing nmf -------------'
